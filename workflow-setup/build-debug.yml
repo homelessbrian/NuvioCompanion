@@ -9,7 +9,7 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: companion-debug-build
@@ -36,7 +36,7 @@ jobs:
       - name: Build debug APK
         run: gradle :app:assembleDebug --parallel --build-cache --no-daemon
 
-      - name: Rename APK
+      - name: Prepare APK
         env:
           SUFFIX: ${{ inputs.artifact_suffix }}
         run: |
@@ -47,10 +47,12 @@ jobs:
           suffix="${SUFFIX:-${GITHUB_RUN_NUMBER}}"
           cp "$apk" "out/Nuvio-Companion-Debug-${suffix}.apk"
 
-      - name: Upload installable APK
-        uses: actions/upload-artifact@v4
+      - name: Publish direct APK download
+        uses: softprops/action-gh-release@v2
         with:
-          name: nuvio-companion-debug-${{ github.run_number }}
-          path: out/*.apk
-          if-no-files-found: error
-          retention-days: 30
+          tag_name: debug-${{ github.run_number }}
+          name: Debug Build #${{ github.run_number }}
+          body: Automated debug build. Download the APK asset directly; no archive extraction is needed.
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          files: out/*.apk

@@ -9,7 +9,7 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: companion-release-build
@@ -37,17 +37,20 @@ jobs:
       - name: Build release variant
         run: gradle :app:assembleRelease --parallel --build-cache --no-daemon
 
-      - name: Collect APK
+      - name: Prepare APK
         run: |
           set -euo pipefail
           mkdir -p out
-          find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -exec cp {} out/Nuvio-Companion-Prototype-Release.apk \;
-          test -f out/Nuvio-Companion-Prototype-Release.apk
+          apk="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$apk"
+          cp "$apk" out/Nuvio-Companion-Prototype-Release.apk
 
-      - name: Upload release-variant APK
-        uses: actions/upload-artifact@v4
+      - name: Publish direct APK download
+        uses: softprops/action-gh-release@v2
         with:
-          name: nuvio-companion-release-prototype-${{ github.run_number }}
-          path: out/*.apk
-          if-no-files-found: error
-          retention-days: 30
+          tag_name: release-prototype-${{ github.run_number }}
+          name: Prototype Release Build #${{ github.run_number }}
+          body: Prototype build for testing. This APK is currently signed with the debug key and is not a production release.
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          files: out/*.apk

@@ -39,9 +39,9 @@ app/build/outputs/apk/debug/app-debug.apk
 
 Active workflows are stored in `.github/workflows/`:
 
-- **Build and Test** — builds the debug APK and runs unit tests on pushes, pull requests, or manual dispatch.
-- **Build Debug APK** — manually builds and uploads an installable debug APK.
-- **Build Release Variant** — manually builds and uploads a prototype release APK. This currently uses the debug signing key and is not suitable for public distribution.
+- **Build and Test** — builds the debug APK and runs unit tests on pushes, pull requests, or manual dispatch. GitHub Actions stores these as workflow artifacts, which GitHub packages as ZIP downloads.
+- **Build Debug APK** — manually builds and publishes the APK as a direct `.apk` asset on a prerelease. Download the APK from the Releases page without extracting a ZIP.
+- **Build Release Variant** — manually builds and publishes a prototype APK as a direct `.apk` asset on a prerelease. This currently uses the debug signing key and is not suitable for public distribution.
 
 The `workflow-setup/` directory contains matching workflow copies for reference.
 
