@@ -1,6 +1,6 @@
 kit:
   name: Nuvio Companion Starter Kit
-  version: 0.1.0
+  version: 0.1.1
   created: 2026-11-11
   destination: repository-root
   extraction:
@@ -16,9 +16,10 @@ kit:
     min_sdk: 24
     compile_sdk: 36
     java: 17
-    gradle: 8.13.2
+    gradle: 8.13
   workflows:
-    install_once_from: workflow-setup/
+    active_directory: .github/workflows/
+    reference_directory: workflow-setup/
     files:
       - apply-kit.yml
       - build-ci.yml

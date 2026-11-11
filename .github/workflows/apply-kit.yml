@@ -34,14 +34,16 @@ jobs:
           git status --short
 
       - name: Commit kit changes
+        env:
+          GH_ACTOR: ${{ github.actor }}
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git config user.name "$GH_ACTOR"
+          git config user.email "38150792+homelessbrian@users.noreply.github.com"
           git add -A
           if git diff --cached --quiet; then
             echo "No project changes found in kit."
           else
-            git commit -m "Apply Nuvio Companion kit"
+            git commit -m "Apply Companion project update"
             git push
           fi
