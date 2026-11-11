@@ -32,7 +32,8 @@ jobs:
           gradle-version: "8.13"
 
       - name: Build debug APK and run unit tests
-        run: gradle :app:assembleDebug :app:testDebugUnitTest --no-daemon
+        run: |
+          gradle :app:assembleDebug :app:testDebugUnitTest --no-daemon
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
@@ -41,3 +42,12 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuvio-companion-test-reports-${{ github.run_number }}
+          path: app/build/reports/tests/
+          if-no-files-found: ignore
+          retention-days: 7
