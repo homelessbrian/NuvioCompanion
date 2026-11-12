@@ -18,11 +18,12 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -93,8 +94,19 @@ private fun CompanionSettings(onAccessibility: () -> Unit) {
     var recording by remember { mutableStateOf(DrawerSettings.isRecording(context)) }
     var inputStatus by remember { mutableStateOf("Shortcut not configured") }
     var accessibilityEnabled by remember { mutableStateOf(isCompanionAccessibilityEnabled(context)) }
+    val lifecycleOwner = LocalLifecycleOwner.current
     val nuvioApps = apps.filter { it.label.contains("nuvio", true) || it.packageName.contains("nuvio", true) }
 
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                apps = AppCatalog.load(context, true)
+                selectedNuvio = DrawerSettings.selectedNuvio(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     DisposableEffect(Unit) {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context?, i: Intent?) {
@@ -142,9 +154,6 @@ private fun CompanionSettings(onAccessibility: () -> Unit) {
                     Column {
                         Text("Your TV, your way.", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
                         Text("Manage your remote shortcut and launcher behavior.", color = muted, fontSize = 12.sp)
-                    }
-                    Button(onClick = onSetLauncher, colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color.White)) {
-                        Text("Set as Home launcher")
                     }
                 }
 
@@ -204,7 +213,7 @@ private fun CompanionSettings(onAccessibility: () -> Unit) {
                         Text("Home opens your selected Nuvio app. The remote shortcut opens the app drawer over your current screen.", color = muted, fontSize = 11.sp)
                         Text("SELECTED APP", color = muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         if (nuvioApps.isEmpty()) {
-                            Text("No Nuvio app detected. Install it, then refresh.", color = muted, fontSize = 11.sp)
+                            Text("No Nuvio app detected. Install one, then reopen Companion.", color = muted, fontSize = 11.sp)
                         } else {
                             nuvioApps.take(4).forEach { app ->
                                 Row(
