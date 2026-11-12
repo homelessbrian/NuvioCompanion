@@ -209,8 +209,8 @@ private fun CompanionSettings(onAccessibility: () -> Unit) {
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text("HOME EXPERIENCE", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        Text("Nuvio-first mode", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                        Text("Home opens your selected Nuvio app. The remote shortcut opens the app drawer over your current screen.", color = muted, fontSize = 11.sp)
+                        Text("Optional Home behavior", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                        Text("If you choose Companion as your device's Home app, Home opens your selected Nuvio app. This is optional; the remote shortcut opens the drawer without changing your Home app.", color = muted, fontSize = 11.sp)
                         Text("SELECTED APP", color = muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         if (nuvioApps.isEmpty()) {
                             Text("No Nuvio app detected. Install one, then reopen Companion.", color = muted, fontSize = 11.sp)
