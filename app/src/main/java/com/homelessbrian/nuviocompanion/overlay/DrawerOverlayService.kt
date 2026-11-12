@@ -232,7 +232,7 @@ object DrawerOverlayService {
         var selectedIconPack by remember { mutableStateOf(DrawerSettings.iconPack(context)) }
         var showingSettings by remember { mutableStateOf(false) }
         val settingsFocusRequester = remember { FocusRequester() }
-        LaunchedEffect(showingSettings) { if (showingSettings) settingsFocusRequester.requestFocus() }
+        LaunchedEffect(showingSettings) { if (showingSettings) { androidx.compose.runtime.withFrameNanos { }; settingsFocusRequester.requestFocus() } }
         var hidden by remember { mutableStateOf(DrawerSettings.hidden(context)) }
         var favorites by remember { mutableStateOf(DrawerSettings.favorites(context)) }
         var position by remember { mutableStateOf(DrawerSettings.position(context)) }
