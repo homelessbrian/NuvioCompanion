@@ -372,6 +372,7 @@ object DrawerOverlayService {
                             )
                         }
                     }
+                }
                     editingIconFor?.let { packageName ->
                         val app = allApps.firstOrNull { it.packageName == packageName }
                         AlertDialog(
@@ -417,7 +418,6 @@ object DrawerOverlayService {
                             confirmButton = { DrawerAction("CLOSE", false) { editingIconFor = null } }
                         )
                     }
-                }
             } else if (isCenter) {
                 Column(Modifier.fillMaxSize().padding(22.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
