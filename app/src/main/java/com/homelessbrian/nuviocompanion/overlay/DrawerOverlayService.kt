@@ -62,40 +62,71 @@ object DrawerOverlayService {
     }
 
     private fun open(service: AccessibilityService) {
-        report(service, "Shortcut received. Creating app drawer…")
-        val wm = service.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        val position = DrawerSettings.position(service)
-        val (width, height, gravity) = when (position) {
-            DrawerPosition.TOP -> Triple(WindowManager.LayoutParams.MATCH_PARENT, (service.resources.displayMetrics.heightPixels * .36f).toInt(), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
-            DrawerPosition.BOTTOM -> Triple(WindowManager.LayoutParams.MATCH_PARENT, (service.resources.displayMetrics.heightPixels * .36f).toInt(), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
-            DrawerPosition.LEFT -> Triple((service.resources.displayMetrics.widthPixels * .38f).toInt(), WindowManager.LayoutParams.MATCH_PARENT, Gravity.START or Gravity.CENTER_VERTICAL)
-            DrawerPosition.RIGHT -> Triple((service.resources.displayMetrics.widthPixels * .38f).toInt(), WindowManager.LayoutParams.MATCH_PARENT, Gravity.END or Gravity.CENTER_VERTICAL)
-            DrawerPosition.CENTER -> Triple((service.resources.displayMetrics.widthPixels * .84f).toInt(), (service.resources.displayMetrics.heightPixels * .78f).toInt(), Gravity.CENTER)
-        }
-        val lifecycleOwner = OverlayLifecycleOwner()
-        val composeView = ComposeView(service).apply {
-            setViewTreeLifecycleOwner(lifecycleOwner)
-            isFocusable = true; isFocusableInTouchMode = true
-            setOnKeyListener { _, keyCode, event ->
-                if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) { close(); true } else false
-            }
-            setContent { MaterialTheme { DrawerContent(service, onClose = ::close, onLaunch = { pkg -> AppCatalog.launch(service, pkg); close() }) } }
-        }
-        val params = WindowManager.LayoutParams(width, height, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_DIM_BEHIND,
-            PixelFormat.TRANSLUCENT).apply { this.gravity = gravity; dimAmount = .22f }
-        lifecycleOwner.start()
+        var wm: WindowManager? = null
+        var lifecycleOwner: OverlayLifecycleOwner? = null
+        var composeView: ComposeView? = null
+
         try {
+            report(service, "Shortcut received. Creating app drawer…")
+            wm = service.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            val position = DrawerSettings.position(service)
+            val (width, height, gravity) = when (position) {
+                DrawerPosition.TOP -> Triple(WindowManager.LayoutParams.MATCH_PARENT, (service.resources.displayMetrics.heightPixels * .36f).toInt(), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+                DrawerPosition.BOTTOM -> Triple(WindowManager.LayoutParams.MATCH_PARENT, (service.resources.displayMetrics.heightPixels * .36f).toInt(), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
+                DrawerPosition.LEFT -> Triple((service.resources.displayMetrics.widthPixels * .38f).toInt(), WindowManager.LayoutParams.MATCH_PARENT, Gravity.START or Gravity.CENTER_VERTICAL)
+                DrawerPosition.RIGHT -> Triple((service.resources.displayMetrics.widthPixels * .38f).toInt(), WindowManager.LayoutParams.MATCH_PARENT, Gravity.END or Gravity.CENTER_VERTICAL)
+                DrawerPosition.CENTER -> Triple((service.resources.displayMetrics.widthPixels * .84f).toInt(), (service.resources.displayMetrics.heightPixels * .78f).toInt(), Gravity.CENTER)
+            }
+
+            lifecycleOwner = OverlayLifecycleOwner()
+            composeView = ComposeView(service).apply {
+                setViewTreeLifecycleOwner(lifecycleOwner!!)
+                isFocusable = true
+                isFocusableInTouchMode = true
+                setOnKeyListener { _, keyCode, event ->
+                    if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
+                        close()
+                        true
+                    } else false
+                }
+                setContent {
+                    MaterialTheme {
+                        DrawerContent(
+                            service,
+                            onClose = ::close,
+                            onLaunch = { pkg -> AppCatalog.launch(service, pkg); close() }
+                        )
+                    }
+                }
+            }
+
+            val params = WindowManager.LayoutParams(
+                width,
+                height,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_DIM_BEHIND,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                this.gravity = gravity
+                dimAmount = .22f
+            }
+
+            lifecycleOwner!!.start()
             wm.addView(composeView, params)
-            root = composeView; owner = lifecycleOwner; windowManager = wm
+            root = composeView
+            owner = lifecycleOwner
+            windowManager = wm
             composeView.requestFocus()
             report(service, "Drawer opened successfully.")
-        } catch (error: SecurityException) {
-            lifecycleOwner.destroy()
-            report(service, "Drawer permission error: ${error.message ?: "overlay rejected"}")
-        } catch (error: RuntimeException) {
-            lifecycleOwner.destroy()
-            report(service, "Drawer startup error: ${error.javaClass.simpleName}: ${error.message ?: "unknown error"}")
+        } catch (error: Throwable) {
+            composeView?.let { view -> runCatching { wm?.removeView(view) } }
+            lifecycleOwner?.destroy()
+            root = null
+            owner = null
+            windowManager = null
+            runCatching {
+                report(service, "Drawer startup failed: ${error.javaClass.simpleName}: ${error.message ?: "unknown error"}")
+            }
         }
     }
 
