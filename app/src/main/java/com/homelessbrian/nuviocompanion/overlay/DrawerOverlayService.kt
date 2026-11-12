@@ -268,7 +268,10 @@ object DrawerOverlayService {
             Modifier.fillMaxSize()
                 .onPreviewKeyEvent { event ->
                     val back = event.key == Key.Back || event.key == Key.Escape
-                    if (back && event.type == KeyEventType.KeyUp) { onClose(); true } else back
+                    if (back && event.type == KeyEventType.KeyUp) {
+                        if (showingSettings && editingIconFor != null) editingIconFor = null else onClose()
+                        true
+                    } else back
                 }
                 .shadow(18.dp, RoundedCornerShape(24.dp), clip = false),
             shape = RoundedCornerShape(24.dp),
@@ -349,75 +352,74 @@ object DrawerOverlayService {
                             Text("${visibleApps.size} visible · ${allApps.size} installed", color = accent, fontSize = 11.sp)
                         }
                     }
-                    columnItems(allApps, key = { it.packageName }) { app ->
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Image(app.icon.toBitmapPreservingAspect(96).asImageBitmap(), app.label, Modifier.size(46.dp), contentScale = ContentScale.Fit)
-                            Spacer(Modifier.width(14.dp))
-                            Text(app.label, color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 1)
-                            DrawerAction("ICON", false) { editingIconFor = app.packageName }
-                            Spacer(Modifier.width(8.dp))
-                            DrawerAction(if (app.packageName in favorites) "★" else "☆", app.packageName in favorites) {
-                                favorites = if (app.packageName in favorites) favorites - app.packageName else favorites + app.packageName
-                                DrawerSettings.setFavorites(context, favorites)
-                            }
-                            Spacer(Modifier.width(10.dp))
-                            Switch(
-                                checked = app.packageName !in hidden,
-                                onCheckedChange = { visible ->
-                                    hidden = if (visible) hidden - app.packageName else hidden + app.packageName
-                                    DrawerSettings.setHidden(context, hidden)
+                    if (editingIconFor == null) {
+                        columnItems(allApps, key = { it.packageName }) { app ->
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Image(app.icon.toBitmapPreservingAspect(96).asImageBitmap(), app.label, Modifier.size(46.dp), contentScale = ContentScale.Fit)
+                                Spacer(Modifier.width(14.dp))
+                                Text(app.label, color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 1)
+                                DrawerAction("ICON", false) { editingIconFor = app.packageName }
+                                Spacer(Modifier.width(8.dp))
+                                DrawerAction(if (app.packageName in favorites) "★" else "☆", app.packageName in favorites) {
+                                    favorites = if (app.packageName in favorites) favorites - app.packageName else favorites + app.packageName
+                                    DrawerSettings.setFavorites(context, favorites)
                                 }
-                            )
+                                Spacer(Modifier.width(10.dp))
+                                Switch(
+                                    checked = app.packageName !in hidden,
+                                    onCheckedChange = { visible ->
+                                        hidden = if (visible) hidden - app.packageName else hidden + app.packageName
+                                        DrawerSettings.setHidden(context, hidden)
+                                    }
+                                )
+                            }
                         }
-                    }
-                }
-                    editingIconFor?.let { packageName ->
+                    } else {
+                        val packageName = editingIconFor!!
                         val app = allApps.firstOrNull { it.packageName == packageName }
-                        AlertDialog(
-                            onDismissRequest = { editingIconFor = null },
-                            title = { Text("Choose icon for ${app?.label ?: packageName}") },
-                            text = {
-                                if (selectedIconPack.isNullOrBlank()) {
-                                    Text("Select an icon pack above before choosing individual icons.")
-                                } else if (iconPackEntries.isEmpty()) {
-                                    Text("This pack does not expose a readable appfilter.xml icon list.")
-                                } else {
-                                    LazyColumn(Modifier.heightIn(max = 440.dp)) {
-                                        item {
-                                            DrawerAction("USE PACK DEFAULT", false) {
-                                                DrawerSettings.setAppIconOverride(context, packageName, null)
-                                                allApps = AppCatalog.load(context, true)
-                                                editingIconFor = null
-                                            }
-                                        }
-                                        columnItems(iconPackEntries, key = { it.component + it.drawableName }) { entry ->
-                                            Row(
-                                                Modifier.fillMaxWidth().clickable {
-                                                    DrawerSettings.setAppIconOverride(context, packageName, entry.drawableName)
-                                                    allApps = AppCatalog.load(context, true)
-                                                    editingIconFor = null
-                                                }.focusable().padding(vertical = 7.dp, horizontal = 4.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                val preview = remember(selectedIconPack, entry.drawableName) {
-                                                    selectedIconPack?.let { IconPackManager.drawable(context, it, entry.drawableName) }
-                                                }
-                                                if (preview != null) Image(preview.toBitmapPreservingAspect(96).asImageBitmap(), entry.drawableName, Modifier.size(42.dp), contentScale = ContentScale.Fit)
-                                                Spacer(Modifier.width(12.dp))
-                                                Column(Modifier.weight(1f)) {
-                                                    Text(entry.drawableName, color = Color.White, fontSize = 12.sp, maxLines = 1)
-                                                    Text(entry.component.removePrefix("ComponentInfo{").substringBefore('/'), color = Color(0xFFB3B3B3), fontSize = 9.sp, maxLines = 1)
-                                                }
-                                            }
-                                        }
+                        item {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                DrawerAction("← BACK", false) { editingIconFor = null }
+                                Spacer(Modifier.width(14.dp))
+                                Text("CHOOSE ICON · ${app?.label ?: packageName}", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            if (selectedIconPack.isNullOrBlank()) {
+                                Text("Select an icon pack above before choosing individual icons.", color = Color(0xFFB3B3B3), fontSize = 12.sp)
+                            } else if (iconPackEntries.isEmpty()) {
+                                Text("This pack does not expose a readable appfilter.xml icon list.", color = Color(0xFFB3B3B3), fontSize = 12.sp)
+                            }
+                            DrawerAction("USE PACK DEFAULT", false) {
+                                DrawerSettings.setAppIconOverride(context, packageName, null)
+                                allApps = AppCatalog.load(context, true)
+                                editingIconFor = null
+                            }
+                        }
+                        if (!selectedIconPack.isNullOrBlank()) {
+                            columnItems(iconPackEntries, key = { it.component + it.drawableName }) { entry ->
+                                Row(
+                                    Modifier.fillMaxWidth().clickable {
+                                        DrawerSettings.setAppIconOverride(context, packageName, entry.drawableName)
+                                        allApps = AppCatalog.load(context, true)
+                                        editingIconFor = null
+                                    }.focusable().padding(vertical = 7.dp, horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val preview = remember(selectedIconPack, entry.drawableName) {
+                                        selectedIconPack?.let { IconPackManager.drawable(context, it, entry.drawableName) }
+                                    }
+                                    if (preview != null) Image(preview.toBitmapPreservingAspect(96).asImageBitmap(), entry.drawableName, Modifier.size(42.dp), contentScale = ContentScale.Fit)
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(entry.drawableName, color = Color.White, fontSize = 12.sp, maxLines = 1)
+                                        Text(entry.component.removePrefix("ComponentInfo{").substringBefore('/'), color = Color(0xFFB3B3B3), fontSize = 9.sp, maxLines = 1)
                                     }
                                 }
-                            },
-                            confirmButton = { DrawerAction("CLOSE", false) { editingIconFor = null } }
-                        )
+                            }
+                        }
                     }
             } else if (isCenter) {
                 Column(Modifier.fillMaxSize().padding(22.dp)) {
