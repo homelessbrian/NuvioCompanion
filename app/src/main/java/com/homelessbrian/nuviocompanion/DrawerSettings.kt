@@ -28,4 +28,12 @@ object DrawerSettings {
     fun setOrder(context: Context, value: List<String>) { prefs(context).edit().putString("app_order", value.joinToString("|")).apply() }
     fun selectedNuvio(context: Context) = prefs(context).getString("selected_nuvio", null)
     fun setSelectedNuvio(context: Context, value: String?) { prefs(context).edit().putString("selected_nuvio", value).apply() }
+    fun showNames(context: Context) = prefs(context).getBoolean("drawer_show_names", true)
+    fun setShowNames(context: Context, value: Boolean) { prefs(context).edit().putBoolean("drawer_show_names", value).apply() }
+    fun showIcons(context: Context) = prefs(context).getBoolean("drawer_show_icons", true)
+    fun setShowIcons(context: Context, value: Boolean) { prefs(context).edit().putBoolean("drawer_show_icons", value).apply() }
+    fun focusGlow(context: Context) = prefs(context).getBoolean("drawer_focus_glow", true)
+    fun setFocusGlow(context: Context, value: Boolean) { prefs(context).edit().putBoolean("drawer_focus_glow", value).apply() }
+    fun opacity(context: Context) = prefs(context).getFloat("drawer_opacity", 0.84f)
+    fun setOpacity(context: Context, value: Float) { prefs(context).edit().putFloat("drawer_opacity", value.coerceIn(0.5f, 1f)).apply() }
 }
