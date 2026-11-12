@@ -319,7 +319,7 @@ object DrawerOverlayService {
                         }
                         DrawerAction("⚙  SETTINGS", false) { showingSettings = true }
                         Spacer(Modifier.width(8.dp))
-                        DrawerAction("×", false, onClose)
+                        DrawerAction("×", false, onClick = onClose)
                     }
                     Spacer(Modifier.height(18.dp))
                     LazyVerticalGrid(
