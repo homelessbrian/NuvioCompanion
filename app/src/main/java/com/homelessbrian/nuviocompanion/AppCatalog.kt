@@ -22,7 +22,7 @@ object AppCatalog {
             matches.forEach { info ->
                 val activity = info.activityInfo ?: return@forEach
                 if (activity.packageName == context.packageName || found.containsKey(activity.packageName)) return@forEach
-                found[activity.packageName] = InstalledApp(info.loadLabel(pm).toString(), activity.packageName, IconPackManager.iconFor(context, DrawerSettings.iconPack(context), activity.packageName) ?: info.loadIcon(pm))
+                found[activity.packageName] = InstalledApp(info.loadLabel(pm).toString(), activity.packageName, IconPackManager.iconFor(context, DrawerSettings.iconPack(context), activity.packageName, DrawerSettings.appIconOverride(context, activity.packageName)) ?: info.loadIcon(pm))
             }
         }
         val hidden = if (includeHidden) emptySet() else DrawerSettings.hidden(context)
