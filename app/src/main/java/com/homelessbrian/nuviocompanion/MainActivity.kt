@@ -84,20 +84,32 @@ class MainActivity : ComponentActivity() {
     private fun openAccessibilitySettings() = startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
 
     private fun requestHomeRole() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val roles = getSystemService(RoleManager::class.java)
-            if (roles != null && roles.isRoleAvailable(RoleManager.ROLE_HOME) && !roles.isRoleHeld(RoleManager.ROLE_HOME)) {
-                try {
-                    startActivity(roles.createRequestRoleIntent(RoleManager.ROLE_HOME))
-                    return
-                } catch (_: Exception) { }
-            } else if (roles?.isRoleHeld(RoleManager.ROLE_HOME) == true) {
+        // Open the device's Home-app selector first. RoleManager can immediately
+        // grant the role on some TV firmware instead of showing the launcher list.
+        val candidates = listOf(
+            Settings.ACTION_HOME_SETTINGS,
+            Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS,
+            "android.settings.HOME_SETTINGS",
+            Settings.ACTION_SETTINGS
+        ).distinct()
+
+        for (action in candidates) {
+            try {
+                startActivity(Intent(action))
                 return
+            } catch (_: Exception) {
+                // Try the next system settings entry point.
             }
         }
-        val candidates = listOf(Settings.ACTION_HOME_SETTINGS, Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS, Settings.ACTION_SETTINGS)
-        candidates.firstOrNull { Intent(it).resolveActivity(packageManager) != null }?.let { action ->
-            runCatching { startActivity(Intent(action)) }
+
+        // Last-resort fallback for devices that do not expose Home settings.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val roles = getSystemService(RoleManager::class.java)
+            if (roles != null && roles.isRoleAvailable(RoleManager.ROLE_HOME) &&
+                !roles.isRoleHeld(RoleManager.ROLE_HOME)
+            ) {
+                runCatching { startActivity(roles.createRequestRoleIntent(RoleManager.ROLE_HOME)) }
+            }
         }
     }
 }
