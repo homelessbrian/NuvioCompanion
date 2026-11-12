@@ -116,7 +116,10 @@ class RemoteKeyAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun trigger() = DrawerOverlayService.toggle(this)
+    private fun trigger() {
+        sendBroadcast(Intent(ACTION_SHORTCUT_TRIGGERED).setPackage(packageName))
+        DrawerOverlayService.toggle(this)
+    }
 
     private fun resetGesture() {
         handler.removeCallbacksAndMessages(null)
@@ -134,6 +137,9 @@ class RemoteKeyAccessibilityService : AccessibilityService() {
     companion object {
         const val ACTION_SHORTCUT_RECORDED = "com.homelessbrian.nuviocompanion.SHORTCUT_RECORDED"
         const val ACTION_INPUT_EVENT = "com.homelessbrian.nuviocompanion.INPUT_EVENT"
+        const val ACTION_SHORTCUT_TRIGGERED = "com.homelessbrian.nuviocompanion.SHORTCUT_TRIGGERED"
+        const val ACTION_OVERLAY_STATUS = "com.homelessbrian.nuviocompanion.OVERLAY_STATUS"
+        const val EXTRA_STATUS = "status"
         const val EXTRA_KEY_CODE = "key_code"
         const val EXTRA_MAPPED = "mapped"
         private const val DOUBLE_PRESS_WINDOW = 320L
