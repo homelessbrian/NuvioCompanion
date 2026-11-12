@@ -215,6 +215,7 @@ object DrawerOverlayService {
         val isSide = position == DrawerPosition.LEFT || position == DrawerPosition.RIGHT
         val isCenter = position == DrawerPosition.CENTER
         val visibleApps = allApps.filter { it.packageName !in hidden }
+            .sortedByDescending { it.packageName in favorites }
         val bg = Color(0xF20C1220)
         val tile = Color(0xFF182338)
         val accent = Color(0xFF9B8CFF)
@@ -309,7 +310,7 @@ object DrawerOverlayService {
                         }
                     } else if (isCenter) {
                         LazyVerticalGrid(
-                            columns = GridCells.Adaptive(minSize = 104.dp),
+                            columns = GridCells.Adaptive(minSize = 190.dp),
                             modifier = Modifier.weight(1f).fillMaxWidth().focusGroup(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -358,22 +359,33 @@ object DrawerOverlayService {
         onClick: () -> Unit
     ) {
         var focused by remember(app.packageName) { mutableStateOf(false) }
-        Column(
+        val cardShape = RoundedCornerShape(18.dp)
+        Row(
             Modifier
-                .width(if (compact) 112.dp else 116.dp)
-                .height(if (compact) 76.dp else 104.dp)
+                .then(if (compact) Modifier.fillMaxWidth() else Modifier.width(190.dp))
+                .height(84.dp)
                 .onFocusChanged { focused = it.isFocused }
-                .background(if (focused) Color(0xFF34305C) else tileColor, RoundedCornerShape(14.dp))
-                .then(if (focused) Modifier.border(2.dp, accent, RoundedCornerShape(14.dp)) else Modifier)
+                .background(if (focused) Color(0xFF34305C) else tileColor, cardShape)
+                .then(if (focused) Modifier.border(2.dp, accent, cardShape) else Modifier)
                 .clickable(onClick = onClick)
                 .focusable()
-                .padding(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Image(app.icon.toBitmap(96, 96).asImageBitmap(), app.label, Modifier.size(if (compact) 34.dp else 46.dp))
-            Spacer(Modifier.height(5.dp))
-            Text(app.label, color = Color.White, fontSize = 11.sp, maxLines = 1)
+            Box(
+                Modifier.size(58.dp)
+                    .background(if (focused) Color(0xFF51449B) else Color(0xFF263650), RoundedCornerShape(15.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(42.dp))
+            }
+            Spacer(Modifier.width(13.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+                Text(app.label, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Spacer(Modifier.height(4.dp))
+                Text("OPEN APP", color = if (focused) Color(0xFFD7D0FF) else Color(0xFF91A1BD), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            }
+            Text("›", color = if (focused) Color.White else Color(0xFF7385A3), fontSize = 25.sp, fontWeight = FontWeight.Light)
         }
     }
 
