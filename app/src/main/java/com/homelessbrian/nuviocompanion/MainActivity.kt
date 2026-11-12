@@ -1,13 +1,16 @@
 package com.homelessbrian.nuviocompanion
 
 import android.app.role.RoleManager
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,15 +31,19 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.homelessbrian.nuviocompanion.remote.RemoteKeyAccessibilityService
 
+private val Ink = Color(0xFF0D111B)
+private val Panel = Color(0xFF1A2232)
+private val Muted = Color(0xFF9BA9C2)
+private val Accent = Color(0xFF8798FF)
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme { CompanionSettings(
-            onEnableAccessibility = { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
-            onSetLauncher = { requestLauncherRole() }
-        ) } }
+        setContent { MaterialTheme(colorScheme = darkColorScheme(primary = Accent, background = Ink, surface = Panel)) { CompanionSettings(::openAccessibilitySettings, ::requestHomeRole) } }
     }
-    private fun requestLauncherRole() {
+
+    private fun openAccessibilitySettings() = startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+    private fun requestHomeRole() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val roles = getSystemService(RoleManager::class.java)
             if (roles.isRoleAvailable(RoleManager.ROLE_HOME) && !roles.isRoleHeld(RoleManager.ROLE_HOME))
@@ -46,81 +53,124 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun CompanionSettings(onEnableAccessibility: () -> Unit, onSetLauncher: () -> Unit) {
+private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    var refresh by remember { mutableIntStateOf(0) }
-    var recording by remember { mutableStateOf(DrawerSettings.isRecording(context)) }
-    var keyCode by remember { mutableIntStateOf(DrawerSettings.keyCode(context)) }
-    var position by remember { mutableStateOf(DrawerSettings.position(context)) }
-    var apps by remember { mutableStateOf(AppCatalog.load(context)) }
+    var apps by remember { mutableStateOf(AppCatalog.load(context, true)) }
     var hidden by remember { mutableStateOf(DrawerSettings.hidden(context)) }
+    var favorites by remember { mutableStateOf(DrawerSettings.favorites(context)) }
+    var selectedNuvio by remember { mutableStateOf(DrawerSettings.selectedNuvio(context)) }
+    var position by remember { mutableStateOf(DrawerSettings.position(context)) }
+    var mode by remember { mutableStateOf(DrawerSettings.shortcutMode(context)) }
+    var keyCode by remember { mutableIntStateOf(DrawerSettings.keyCode(context)) }
+    var recording by remember { mutableStateOf(DrawerSettings.isRecording(context)) }
+    var refresh by remember { mutableIntStateOf(0) }
+
     DisposableEffect(Unit) {
-        val receiver = object : android.content.BroadcastReceiver() {
-            override fun onReceive(c: android.content.Context?, i: Intent?) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, i: Intent?) {
                 keyCode = DrawerSettings.keyCode(context); recording = false
             }
         }
-        val filter = android.content.IntentFilter(RemoteKeyAccessibilityService.ACTION_SHORTCUT_RECORDED)
-        if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(receiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
-        else @Suppress("DEPRECATION") context.registerReceiver(receiver, filter)
+        val filter = IntentFilter(RemoteKeyAccessibilityService.ACTION_SHORTCUT_RECORDED)
+        if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED) else @Suppress("DEPRECATION") context.registerReceiver(receiver, filter)
         onDispose { runCatching { context.unregisterReceiver(receiver) } }
     }
-    LaunchedEffect(refresh) { apps = AppCatalog.load(context); hidden = DrawerSettings.hidden(context) }
+    LaunchedEffect(refresh) { apps = AppCatalog.load(context, true); hidden = DrawerSettings.hidden(context); favorites = DrawerSettings.favorites(context) }
     BackHandler(enabled = recording) { DrawerSettings.setRecording(context, false); recording = false }
-    Surface(Modifier.fillMaxSize(), color = Color(0xFF10131B)) {
-        LazyColumn(Modifier.fillMaxSize().padding(horizontal = 44.dp, vertical = 28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+
+    Surface(Modifier.fillMaxSize(), color = Ink) {
+        LazyColumn(Modifier.fillMaxSize().padding(horizontal = 42.dp, vertical = 28.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             item {
-                Text("Nuvio Companion", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold)
-                Text("App drawer and remote controls", color = Color(0xFFADB5C8))
+                Text("Nuvio Companion", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                Text("A better way to move around your Android TV.", color = Muted, fontSize = 15.sp)
             }
-            item { SettingsCard("Set as device launcher", "Make Nuvio Companion the Android TV Home app.") { Button(onClick = onSetLauncher) { Text("Set as launcher") } } }
             item {
-                SettingsCard("Remote shortcut", "Enable the accessibility service, then record a button from your remote.") {
-                    Text(if (keyCode == 0) "No shortcut configured" else "Configured key: $keyCode", color = Color.White)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Button(onClick = onEnableAccessibility) { Text("Accessibility settings") }
-                        Button(onClick = { DrawerSettings.setRecording(context, true); recording = true }) { Text(if (recording) "Listening…" else "Record remote button") }
+                PanelCard("Home button behavior", "Set Companion as your device launcher. Home will then open your selected Nuvio app.") {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(onClick = onSetLauncher) { Text("Set as device launcher") }
+                        Text("Nuvio-first mode", color = Accent, fontWeight = FontWeight.SemiBold)
                     }
-                    if (recording) Text("Press the remote button you want to use.", color = Color(0xFF9EACFF))
+                    Text("Choose the Nuvio installation Home should launch:", color = Muted)
+                    val nuvioApps = apps.filter { it.label.contains("nuvio", true) || it.packageName.contains("nuvio", true) }
+                    if (nuvioApps.isEmpty()) Text("No Nuvio app found yet. Install your Nuvio fork, then refresh this list.", color = Muted)
+                    nuvioApps.forEach { app ->
+                        SelectableRow(app.label, selectedNuvio == app.packageName) {
+                            selectedNuvio = app.packageName; DrawerSettings.setSelectedNuvio(context, app.packageName)
+                        }
+                    }
+                    Button(onClick = { refresh++ }) { Text("Refresh installed apps") }
                 }
             }
             item {
-                Text("Drawer position", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-                Text("All five positions are available.", color = Color(0xFFADB5C8))
+                PanelCard("Remote shortcut", "The shortcut runs above other apps. Android may restrict which remote keys can be intercepted.") {
+                    Text(if (keyCode == 0) "No remote button recorded" else "Button recorded · key code $keyCode", color = if (keyCode == 0) Muted else Accent)
+                    Button(onClick = onAccessibility) { Text("Open accessibility settings") }
+                    Button(onClick = { DrawerSettings.setRecording(context, true); recording = true }) { Text(if (recording) "Listening for button…" else "Record remote button") }
+                    if (recording) Text("Press the remote button you want to use.", color = Accent)
+                    Text("Shortcut type", color = Muted, fontWeight = FontWeight.SemiBold)
+                    ShortcutMode.entries.forEach { option ->
+                        SelectableRow(when(option) { ShortcutMode.SINGLE -> "Single press"; ShortcutMode.DOUBLE -> "Double press"; ShortcutMode.LONG -> "Long press"; ShortcutMode.COMBINATION -> "Button combination" }, mode == option) {
+                            mode = option; DrawerSettings.setShortcutMode(context, option)
+                        }
+                    }
+                    if (mode == ShortcutMode.COMBINATION) Text("Combination recording is being prepared; use a single-key shortcut for now.", color = Muted)
+                }
             }
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("BOTTOM" to "Bottom", "TOP" to "Top", "LEFT" to "Left", "RIGHT" to "Right", "CENTER" to "Center").forEach { (value, label) ->
-                        Row(Modifier.fillMaxWidth().background(if (position == value) Color(0xFF263B68) else Color(0xFF202635), RoundedCornerShape(12.dp)).clickable { position = value; DrawerSettings.setPosition(context, value) }.focusable().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = position == value, onClick = { position = value; DrawerSettings.setPosition(context, value) })
-                            Spacer(Modifier.width(8.dp)); Text(label, color = Color.White)
+                PanelCard("Drawer placement", "Choose where the app drawer appears. Every layout uses the same installed-app library.") {
+                    DrawerPosition.entries.forEach { option ->
+                        SelectableRow(option.name.lowercase().replaceFirstChar { it.uppercase() }, position == option) {
+                            position = option; DrawerSettings.setPosition(context, option)
                         }
                     }
                 }
             }
             item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column { Text("Apps in drawer", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold); Text("Choose which installed apps appear.", color = Color(0xFFADB5C8)) }
-                    Button(onClick = { refresh++ }) { Text("Refresh") }
+                PanelCard("App library", "Choose what appears in the drawer. Favorites are shown first.") {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("${apps.size} installed apps", color = Muted)
+                        TextButton(onClick = { refresh++ }) { Text("Refresh") }
+                    }
                 }
             }
             items(apps, key = { it.packageName }) { app ->
-                Row(Modifier.fillMaxWidth().background(Color(0xFF202635), RoundedCornerShape(12.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Image(app.icon.toBitmap(72, 72).asImageBitmap(), app.label, Modifier.size(42.dp))
-                    Spacer(Modifier.width(14.dp)); Text(app.label, color = Color.White, modifier = Modifier.weight(1f))
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(app.label, color = Color.White, fontWeight = FontWeight.Medium)
+                        Text(app.packageName, color = Muted, fontSize = 11.sp)
+                    }
+                    TextButton(onClick = {
+                        favorites = if (app.packageName in favorites) favorites - app.packageName else favorites + app.packageName
+                        DrawerSettings.setFavorites(context, favorites)
+                    }) { Text(if (app.packageName in favorites) "★" else "☆", color = Accent, fontSize = 20.sp) }
                     Switch(checked = app.packageName !in hidden, onCheckedChange = { show ->
                         hidden = if (show) hidden - app.packageName else hidden + app.packageName
                         DrawerSettings.setHidden(context, hidden)
                     })
                 }
             }
+            item { Spacer(Modifier.height(20.dp)); Text("Nuvio Companion · Settings", color = Muted, fontSize = 12.sp) }
         }
     }
 }
+
 @Composable
-private fun SettingsCard(title: String, description: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().background(Color(0xFF202635), RoundedCornerShape(16.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(title, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
-        Text(description, color = Color(0xFFADB5C8), fontSize = 13.sp); content()
+private fun PanelCard(title: String, description: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+        Text(description, color = Muted, fontSize = 13.sp)
+        content()
+    }
+}
+
+@Composable
+private fun SelectableRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().background(if (selected) Color(0xFF29365A) else Color.Transparent, RoundedCornerShape(10.dp))
+        .clickable(onClick = onClick).focusable().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        RadioButton(selected = selected, onClick = onClick)
+        Spacer(Modifier.width(10.dp))
+        Text(label, color = Color.White)
     }
 }

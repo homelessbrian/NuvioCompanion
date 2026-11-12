@@ -1,27 +1,31 @@
 package com.homelessbrian.nuviocompanion
 
 import android.content.Context
-import android.content.SharedPreferences
+
+enum class DrawerPosition { BOTTOM, TOP, LEFT, RIGHT, CENTER }
+enum class ShortcutMode { SINGLE, DOUBLE, LONG, COMBINATION }
 
 object DrawerSettings {
-    private const val PREFS = "drawer_settings"
-    private const val KEY_CODE = "shortcut_key_code"
-    private const val POSITION = "drawer_position"
-    private const val HIDDEN = "hidden_packages"
-    private const val ORDER = "app_order"
-    private const val RECORDING = "recording_shortcut"
+    private const val PREFS = "companion_preferences"
+    private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    fun prefs(context: Context): SharedPreferences =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    fun position(context: Context) = runCatching { DrawerPosition.valueOf(prefs(context).getString("position", "BOTTOM")!!) }.getOrDefault(DrawerPosition.BOTTOM)
+    fun setPosition(context: Context, value: DrawerPosition) { prefs(context).edit().putString("position", value.name).apply() }
 
-    fun keyCode(context: Context) = prefs(context).getInt(KEY_CODE, 0)
-    fun setKeyCode(context: Context, value: Int) { prefs(context).edit().putInt(KEY_CODE, value).apply() }
-    fun position(context: Context) = prefs(context).getString(POSITION, "BOTTOM") ?: "BOTTOM"
-    fun setPosition(context: Context, value: String) { prefs(context).edit().putString(POSITION, value).apply() }
-    fun hidden(context: Context) = prefs(context).getStringSet(HIDDEN, emptySet())?.toSet() ?: emptySet()
-    fun setHidden(context: Context, value: Set<String>) { prefs(context).edit().putStringSet(HIDDEN, value).apply() }
-    fun order(context: Context) = prefs(context).getString(ORDER, "") ?: ""
-    fun setOrder(context: Context, value: String) { prefs(context).edit().putString(ORDER, value).apply() }
-    fun isRecording(context: Context) = prefs(context).getBoolean(RECORDING, false)
-    fun setRecording(context: Context, value: Boolean) { prefs(context).edit().putBoolean(RECORDING, value).apply() }
+    fun shortcutMode(context: Context) = runCatching { ShortcutMode.valueOf(prefs(context).getString("shortcut_mode", "SINGLE")!!) }.getOrDefault(ShortcutMode.SINGLE)
+    fun setShortcutMode(context: Context, value: ShortcutMode) { prefs(context).edit().putString("shortcut_mode", value.name).apply() }
+    fun keyCode(context: Context) = prefs(context).getInt("shortcut_key", 0)
+    fun setKeyCode(context: Context, value: Int) { prefs(context).edit().putInt("shortcut_key", value).apply() }
+    fun secondKeyCode(context: Context) = prefs(context).getInt("shortcut_key_2", 0)
+    fun setSecondKeyCode(context: Context, value: Int) { prefs(context).edit().putInt("shortcut_key_2", value).apply() }
+    fun isRecording(context: Context) = prefs(context).getBoolean("recording", false)
+    fun setRecording(context: Context, value: Boolean) { prefs(context).edit().putBoolean("recording", value).apply() }
+    fun hidden(context: Context) = prefs(context).getStringSet("hidden_packages", emptySet())?.toSet() ?: emptySet()
+    fun setHidden(context: Context, value: Set<String>) { prefs(context).edit().putStringSet("hidden_packages", value.toSet()).apply() }
+    fun favorites(context: Context) = prefs(context).getStringSet("favorite_packages", emptySet())?.toSet() ?: emptySet()
+    fun setFavorites(context: Context, value: Set<String>) { prefs(context).edit().putStringSet("favorite_packages", value.toSet()).apply() }
+    fun order(context: Context) = prefs(context).getString("app_order", "")?.split("|")?.filter(String::isNotBlank) ?: emptyList()
+    fun setOrder(context: Context, value: List<String>) { prefs(context).edit().putString("app_order", value.joinToString("|")).apply() }
+    fun selectedNuvio(context: Context) = prefs(context).getString("selected_nuvio", null)
+    fun setSelectedNuvio(context: Context, value: String?) { prefs(context).edit().putString("selected_nuvio", value).apply() }
 }
