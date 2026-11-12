@@ -44,7 +44,7 @@ object IconPackManager {
             }.getOrNull().orEmpty()
 
             catalog.distinctBy { it.drawableName }
-                .filter { drawable(packContext, packPackage, it.drawableName) != null }
+                .filter { drawableFromPackContext(packContext, packPackage, it.drawableName) != null }
                 .sortedWith(compareBy<IconPackEntry> { it.category.lowercase() }.thenBy { it.drawableName.lowercase() })
         }.getOrDefault(emptyList())
     }
@@ -91,7 +91,7 @@ object IconPackManager {
             val drawableName = overrideName ?: appMappings(context, packPackage)
                 .firstOrNull { it.component.startsWith("ComponentInfo{$appPackage/") }?.drawableName
                 ?: return@runCatching null
-            drawable(packContext, packPackage, drawableName)
+            drawableFromPackContext(packContext, packPackage, drawableName)
         }.getOrNull()
     }
 
@@ -101,7 +101,7 @@ object IconPackManager {
             drawable(packContext, packPackage, drawableName)
         }.getOrNull()
 
-    private fun drawable(packContext: Context, packPackage: String, drawableName: String): Drawable? =
+    private fun drawableFromPackContext(packContext: Context, packPackage: String, drawableName: String): Drawable? =
         runCatching {
             val id = packContext.resources.getIdentifier(drawableName, "drawable", packPackage)
                 .takeIf { it != 0 }
