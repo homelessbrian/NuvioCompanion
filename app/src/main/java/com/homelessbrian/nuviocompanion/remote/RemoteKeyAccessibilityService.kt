@@ -118,7 +118,20 @@ class RemoteKeyAccessibilityService : AccessibilityService() {
 
     private fun trigger() {
         sendBroadcast(Intent(ACTION_SHORTCUT_TRIGGERED).setPackage(packageName))
-        DrawerOverlayService.toggle(this)
+        // WindowManager and Compose view creation must run on the main thread.
+        handler.post {
+            runCatching { DrawerOverlayService.toggle(this) }
+                .onFailure { error ->
+                    sendBroadcast(
+                        Intent(ACTION_OVERLAY_STATUS)
+                            .setPackage(packageName)
+                            .putExtra(
+                                EXTRA_STATUS,
+                                "Drawer trigger failed: ${error.javaClass.simpleName}: ${error.message ?: "unknown error"}"
+                            )
+                    )
+                }
+        }
     }
 
     private fun resetGesture() {
