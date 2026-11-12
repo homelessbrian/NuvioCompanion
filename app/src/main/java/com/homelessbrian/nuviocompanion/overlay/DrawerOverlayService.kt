@@ -332,7 +332,7 @@ object DrawerOverlayService {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             DividerLine()
                             Text("MANAGE APPS", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                            Text("Choose which apps appear. Pin favorites to keep them first.", color = Color(0xFFB3B3B3), fontSize = 11.sp)
+                            Text("Choose which apps appear. Pin favorites to keep them first. Newly installed apps appear automatically the next time you open the drawer.", color = Color(0xFFB3B3B3), fontSize = 11.sp)
                             Text("${visibleApps.size} visible · ${allApps.size} installed", color = accent, fontSize = 11.sp)
                         }
                     }
