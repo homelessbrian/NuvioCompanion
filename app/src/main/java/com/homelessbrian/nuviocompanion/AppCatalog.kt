@@ -44,14 +44,16 @@ object AppCatalog {
 
             // TV banners are landscape artwork intended for ten-foot launcher interfaces.
             val banner = if (isLeanback) {
-                runCatching { info.loadBanner(pm) }.getOrNull()
-                    ?: runCatching {
-                        if (activity.banner != 0) pm.getDrawable(packageName, activity.banner, activity.applicationInfo) else null
-                    }.getOrNull()
-                    ?: runCatching {
-                        val bannerId = activity.applicationInfo.banner
-                        if (bannerId != 0) pm.getDrawable(packageName, bannerId, activity.applicationInfo) else null
-                    }.getOrNull()
+                runCatching {
+                    if (activity.banner != 0) {
+                        pm.getDrawable(packageName, activity.banner, activity.applicationInfo)
+                    } else {
+                        null
+                    }
+                }.getOrNull() ?: runCatching {
+                    val bannerId = activity.applicationInfo.banner
+                    if (bannerId != 0) pm.getDrawable(packageName, bannerId, activity.applicationInfo) else null
+                }.getOrNull()
             } else null
 
             val launcherIcon = runCatching { info.loadIcon(pm) }.getOrNull()
