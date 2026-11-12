@@ -493,7 +493,7 @@ object DrawerOverlayService {
         Column(
             Modifier.width(60.dp).height(68.dp).onFocusChanged { focused = it.isFocused }
                 .shadow(if (focused && focusGlow) 22.dp else 5.dp, shape, clip = false)
-                .background(if (focused) Color(0xFF303030) else Color(0xFF1E1E1E), shape)
+                .background(if (focused) Color(0xFF303030) else Color.Transparent, shape)
                 .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFFFFFFF), shape) else Modifier)
                 .clickable(onClick = onClick).focusable().padding(vertical = 8.dp, horizontal = 5.dp),
             horizontalAlignment = Alignment.CenterHorizontally
