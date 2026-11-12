@@ -7,6 +7,7 @@ import android.graphics.PixelFormat
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.WindowManager
+import android.os.Build
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -194,6 +195,10 @@ object DrawerOverlayService {
             ).apply {
                 this.gravity = gravity
                 dimAmount = .34f
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    flags = flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
+                    blurBehindRadius = 28
+                }
             }
 
             lifecycleOwner!!.start()
@@ -244,6 +249,8 @@ object DrawerOverlayService {
                     val back = event.key == Key.Back || event.key == Key.Escape
                     if (back && event.type == KeyEventType.KeyUp) { onClose(); true } else back
                 }
+                .shadow(18.dp, RoundedCornerShape(24.dp), clip = false)
+                .border(1.dp, Color.White.copy(alpha = 0.20f), RoundedCornerShape(24.dp))
                 .padding(3.dp),
             shape = RoundedCornerShape(24.dp),
             color = panel
