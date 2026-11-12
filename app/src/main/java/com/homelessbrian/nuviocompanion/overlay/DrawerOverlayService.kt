@@ -549,10 +549,18 @@ object DrawerOverlayService {
             verticalArrangement = Arrangement.Center
         ) {
             if (showIcons) {
-                if (app.isTvBanner) {
-                    Image(app.icon.toBitmapPreservingAspect(512).asImageBitmap(), app.label, Modifier.width(96.dp).height(54.dp).clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
-                } else {
-                    Image(app.icon.toBitmapPreservingAspect(256).asImageBitmap(), app.label, Modifier.size(76.dp), contentScale = ContentScale.Fit)
+                Box(
+                    Modifier.width(96.dp).height(54.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF292929)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        app.icon.toBitmapPreservingAspect(512).asImageBitmap(),
+                        app.label,
+                        Modifier.fillMaxSize(),
+                        contentScale = if (app.isTvBanner) ContentScale.Crop else ContentScale.Fit
+                    )
                 }
             }
             if (showNames) Text(app.label, color = Color.White, fontSize = 9.sp, maxLines = 1, modifier = Modifier.padding(top = 4.dp))
@@ -577,10 +585,18 @@ object DrawerOverlayService {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             if (showIcons) {
-                if (app.isTvBanner) {
-                    Image(app.icon.toBitmapPreservingAspect(384).asImageBitmap(), app.label, Modifier.width(76.dp).height(43.dp).clip(RoundedCornerShape(9.dp)), contentScale = ContentScale.Crop)
-                } else {
-                    Image(app.icon.toBitmapPreservingAspect(224).asImageBitmap(), app.label, Modifier.size(58.dp), contentScale = ContentScale.Fit)
+                Box(
+                    Modifier.width(76.dp).height(43.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(Color(0xFF292929)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        app.icon.toBitmapPreservingAspect(384).asImageBitmap(),
+                        app.label,
+                        Modifier.fillMaxSize(),
+                        contentScale = if (app.isTvBanner) ContentScale.Crop else ContentScale.Fit
+                    )
                 }
             }
             if (showNames) Text(app.label, color = Color.White, fontSize = 9.sp, maxLines = 1)
@@ -608,10 +624,18 @@ object DrawerOverlayService {
             verticalArrangement = Arrangement.Center
         ) {
             if (showIcons) {
-                if (app.isTvBanner) {
-                    Image(app.icon.toBitmapPreservingAspect(512).asImageBitmap(), app.label, Modifier.width(116.dp).height(65.dp).clip(RoundedCornerShape(11.dp)), contentScale = ContentScale.Crop)
-                } else {
-                    Image(app.icon.toBitmapPreservingAspect(256).asImageBitmap(), app.label, Modifier.size(82.dp), contentScale = ContentScale.Fit)
+                Box(
+                    Modifier.width(116.dp).height(65.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(Color(0xFF292929)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        app.icon.toBitmapPreservingAspect(512).asImageBitmap(),
+                        app.label,
+                        Modifier.fillMaxSize(),
+                        contentScale = if (app.isTvBanner) ContentScale.Crop else ContentScale.Fit
+                    )
                 }
             }
             if (showNames) Text(app.label, color = Color.White, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(top = 7.dp))
