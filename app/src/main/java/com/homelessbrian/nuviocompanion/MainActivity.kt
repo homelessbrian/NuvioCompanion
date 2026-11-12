@@ -175,28 +175,8 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
     val muted = Color(0xFF9EABC3)
 
     Surface(Modifier.fillMaxSize(), color = bg) {
-        Row(Modifier.fillMaxSize().padding(22.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-            Column(
-                Modifier.width(190.dp).fillMaxHeight()
-                    .background(panel, RoundedCornerShape(22.dp)).padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(13.dp)
-            ) {
-                Text("N", color = accent, fontSize = 34.sp, fontWeight = FontWeight.Black)
-                Text("Nuvio Companion", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(12.dp))
-                Text("OVERVIEW", color = muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                Text("⌂   Dashboard", color = Color.White, modifier = Modifier.fillMaxWidth().background(Color(0xFF34305C), RoundedCornerShape(10.dp)).padding(11.dp), fontSize = 13.sp)
-                Text("◎   Remote shortcut", color = muted, modifier = Modifier.padding(10.dp), fontSize = 13.sp)
-                Text("▦   App drawer", color = muted, modifier = Modifier.padding(10.dp), fontSize = 13.sp)
-                Spacer(Modifier.weight(1f))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Box(Modifier.size(9.dp).background(if (accessibilityEnabled) Color(0xFF55D69A) else Color(0xFFFFB36B), RoundedCornerShape(50)))
-                    Text(if (accessibilityEnabled) "Service connected" else "Service disabled", color = muted, fontSize = 10.sp)
-                }
-                Text("Version 0.2", color = muted, fontSize = 10.sp)
-            }
-
-            Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
                         Text("Your TV, your way.", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
