@@ -2,25 +2,23 @@ name: Build Debug APK
 
 on:
   workflow_dispatch:
-    inputs:
-      artifact_suffix:
-        description: "Optional label for this build (e.g. remote-key-test)"
-        required: false
-        type: string
 
 permissions:
   contents: write
 
 concurrency:
   group: companion-debug-build
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
+    if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -33,26 +31,54 @@ jobs:
         with:
           gradle-version: "8.13"
 
-      - name: Build debug APK
-        run: gradle :app:assembleDebug --parallel --build-cache --no-daemon
-
-      - name: Prepare APK
+      - name: Restore persistent signing key
         env:
-          SUFFIX: ${{ inputs.artifact_suffix }}
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.COMPANION_SIGNING_KEYSTORE_BASE64 }}
         run: |
           set -euo pipefail
-          mkdir -p out
+          if [ -z "${SIGNING_KEYSTORE_BASE64:-}" ]; then
+            echo "::error::Add the persistent signing secrets before building updateable APKs. See README.md."
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/companion-signing"
+          printf '%s' "$SIGNING_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/companion-signing/companion.jks"
+          test -s "$RUNNER_TEMP/companion-signing/companion.jks"
+
+      - name: Build signed debug APK
+        env:
+          COMPANION_SIGNING_STORE: ${{ runner.temp }}/companion-signing/companion.jks
+          COMPANION_SIGNING_PASSWORD: ${{ secrets.COMPANION_SIGNING_STORE_PASSWORD }}
+          COMPANION_SIGNING_ALIAS: ${{ secrets.COMPANION_SIGNING_KEY_ALIAS }}
+          COMPANION_SIGNING_KEY_PASSWORD: ${{ secrets.COMPANION_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$COMPANION_SIGNING_PASSWORD"
+          test -n "$COMPANION_SIGNING_ALIAS"
+          test -n "$COMPANION_SIGNING_KEY_PASSWORD"
+          gradle :app:assembleDebug --parallel --build-cache --no-daemon
+
+      - name: Prepare stable APK and checksum
+        run: |
+          set -euo pipefail
           apk="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)"
           test -n "$apk"
-          suffix="${SUFFIX:-${GITHUB_RUN_NUMBER}}"
-          cp "$apk" "out/Nuvio-Companion-Debug-${suffix}.apk"
+          mkdir -p downloads
+          install -m 0644 "$apk" downloads/NuvioCompanion.apk
+          sha256sum downloads/NuvioCompanion.apk > downloads/NuvioCompanion.apk.sha256
 
-      - name: Publish direct APK download
-        uses: softprops/action-gh-release@v2
+      - name: Publish to permanent download location
+        run: |
+          set -euo pipefail
+          git config user.name "homelessbrian"
+          git config user.email "38150792+homelessbrian@users.noreply.github.com"
+          git add downloads/NuvioCompanion.apk downloads/NuvioCompanion.apk.sha256
+          git commit -m "Publish latest NuvioCompanion debug APK"
+          git push origin HEAD:main
+
+      - name: Upload APK as workflow artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: debug-${{ github.run_number }}
-          name: Debug Build #${{ github.run_number }}
-          body: Automated debug build. Download the APK asset directly; no archive extraction is needed.
-          target_commitish: ${{ github.sha }}
-          prerelease: true
-          files: out/*.apk
+          name: NuvioCompanion-debug-${{ github.run_number }}
+          path: downloads/NuvioCompanion.apk
+          if-no-files-found: error
+          retention-days: 30
