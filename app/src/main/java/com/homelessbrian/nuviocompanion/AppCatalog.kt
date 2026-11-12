@@ -36,8 +36,31 @@ object AppCatalog {
     }
 
     fun launch(context: Context, packageName: String): Boolean {
-        val intent = context.packageManager.getLaunchIntentForPackage(packageName) ?: return false
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        return runCatching { context.startActivity(intent); true }.getOrDefault(false)
+        val pm = context.packageManager
+        val launchIntent = pm.getLaunchIntentForPackage(packageName)
+        val candidates = if (launchIntent != null) {
+            listOf(launchIntent)
+        } else {
+            listOf(
+                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER),
+                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+            ).flatMap { query ->
+                val matches = if (Build.VERSION.SDK_INT >= 33) {
+                    pm.queryIntentActivities(query, PackageManager.ResolveInfoFlags.of(0))
+                } else {
+                    @Suppress("DEPRECATION")
+                    pm.queryIntentActivities(query, 0)
+                }
+                matches.filter { it.activityInfo?.packageName == packageName }.mapNotNull { info ->
+                    info.activityInfo?.let { activity ->
+                        Intent(Intent.ACTION_MAIN).setClassName(activity.packageName, activity.name)
+                    }
+                }
+            }
+        }
+        return candidates.any { intent ->
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            runCatching { context.startActivity(intent); true }.getOrDefault(false)
+        }
     }
 }
