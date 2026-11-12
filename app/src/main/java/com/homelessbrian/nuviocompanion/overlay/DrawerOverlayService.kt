@@ -390,7 +390,9 @@ object DrawerOverlayService {
                             if (selectedIconPack.isNullOrBlank()) {
                                 Text("Select an icon pack above before choosing individual icons.", color = Color(0xFFB3B3B3), fontSize = 12.sp)
                             } else if (iconPackEntries.isEmpty()) {
-                                Text("This pack does not expose a readable appfilter.xml icon list.", color = Color(0xFFB3B3B3), fontSize = 12.sp)
+                                Text("No browsable icons were found in this pack. The pack needs a drawable.xml catalogue and matching drawable resources.", color = Color(0xFFB3B3B3), fontSize = 12.sp)
+                            } else {
+                                Text("${iconPackEntries.size} icons available · Select any icon", color = Color(0xFFB3B3B3), fontSize = 11.sp)
                             }
                             DrawerAction("USE PACK DEFAULT", false) {
                                 DrawerSettings.setAppIconOverride(context, packageName, null)
@@ -398,25 +400,54 @@ object DrawerOverlayService {
                                 editingIconFor = null
                             }
                         }
-                        if (!selectedIconPack.isNullOrBlank()) {
-                            columnItems(iconPackEntries, key = { it.component + it.drawableName }) { entry ->
+                        if (!selectedIconPack.isNullOrBlank() && iconPackEntries.isNotEmpty()) {
+                            columnItems(
+                                iconPackEntries.chunked(5),
+                                key = { row -> row.firstOrNull()?.drawableName ?: "empty-icon-row" }
+                            ) { iconRow ->
                                 Row(
-                                    Modifier.fillMaxWidth().clickable {
-                                        DrawerSettings.setAppIconOverride(context, packageName, entry.drawableName)
-                                        allApps = AppCatalog.load(context, true)
-                                        editingIconFor = null
-                                    }.focusable().padding(vertical = 7.dp, horizontal = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    val preview = remember(selectedIconPack, entry.drawableName) {
-                                        selectedIconPack?.let { IconPackManager.drawable(context, it, entry.drawableName) }
+                                    iconRow.forEach { entry ->
+                                        Column(
+                                            Modifier.weight(1f)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .clickable {
+                                                    DrawerSettings.setAppIconOverride(context, packageName, entry.drawableName)
+                                                    allApps = AppCatalog.load(context, true)
+                                                    editingIconFor = null
+                                                }
+                                                .focusable()
+                                                .padding(horizontal = 3.dp, vertical = 7.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            val preview = remember(selectedIconPack, entry.drawableName) {
+                                                selectedIconPack?.let { IconPackManager.drawable(context, it, entry.drawableName) }
+                                            }
+                                            if (preview != null) {
+                                                Image(
+                                                    preview.toBitmapPreservingAspect(128).asImageBitmap(),
+                                                    entry.drawableName,
+                                                    Modifier.size(54.dp),
+                                                    contentScale = ContentScale.Fit
+                                                )
+                                            } else {
+                                                Box(Modifier.size(54.dp), contentAlignment = Alignment.Center) {
+                                                    Text("?", color = Color(0xFFB3B3B3), fontSize = 20.sp)
+                                                }
+                                            }
+                                            Text(
+                                                entry.drawableName,
+                                                color = Color.White,
+                                                fontSize = 9.sp,
+                                                maxLines = 2,
+                                                minLines = 2,
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                            )
+                                        }
                                     }
-                                    if (preview != null) Image(preview.toBitmapPreservingAspect(96).asImageBitmap(), entry.drawableName, Modifier.size(42.dp), contentScale = ContentScale.Fit)
-                                    Spacer(Modifier.width(12.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        Text(entry.drawableName, color = Color.White, fontSize = 12.sp, maxLines = 1)
-                                        Text(entry.component.removePrefix("ComponentInfo{").substringBefore('/'), color = Color(0xFFB3B3B3), fontSize = 9.sp, maxLines = 1)
-                                    }
+                                    repeat(5 - iconRow.size) { Spacer(Modifier.weight(1f)) }
                                 }
                             }
                         }
