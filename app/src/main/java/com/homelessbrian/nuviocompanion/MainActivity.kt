@@ -8,6 +8,7 @@ import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -55,8 +56,33 @@ class MainActivity : ComponentActivity() {
     private fun requestHomeRole() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val roles = getSystemService(RoleManager::class.java)
-            if (roles.isRoleAvailable(RoleManager.ROLE_HOME) && !roles.isRoleHeld(RoleManager.ROLE_HOME)) startActivityForResult(roles.createRequestRoleIntent(RoleManager.ROLE_HOME), 410)
-        } else startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
+            if (roles != null && roles.isRoleAvailable(RoleManager.ROLE_HOME) && !roles.isRoleHeld(RoleManager.ROLE_HOME)) {
+                try {
+                    startActivityForResult(roles.createRequestRoleIntent(RoleManager.ROLE_HOME), 410)
+                    return
+                } catch (_: Exception) {
+                    // Some TV firmware advertises the Home role but cannot open its chooser.
+                }
+            }
+        }
+
+        // Android TV and vendor firmware do not always expose ROLE_HOME.
+        // Fall back to the system Home-app settings page instead of silently doing nothing.
+        val settingsIntents = listOf(
+            Intent(Settings.ACTION_HOME_SETTINGS),
+            Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS),
+            Intent(Settings.ACTION_SETTINGS)
+        )
+        val settingsIntent = settingsIntents.firstOrNull { it.resolveActivity(packageManager) != null }
+        if (settingsIntent != null) {
+            try {
+                startActivity(settingsIntent)
+            } catch (_: Exception) {
+                Toast.makeText(this, "Open Android Settings and look for Home app or Default launcher.", Toast.LENGTH_LONG).show()
+            }
+        } else {
+            Toast.makeText(this, "Open Android Settings and look for Home app or Default launcher.", Toast.LENGTH_LONG).show()
+        }
     }
 }
 
