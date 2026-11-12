@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items as columnItems
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -420,7 +421,7 @@ object DrawerOverlayService {
         onClick: () -> Unit
     ) {
         var focused by remember(app.packageName) { mutableStateOf(false) }
-        val scale = if (focused) 1.07f else 1f
+        val scale by animateFloatAsState(if (focused) 1.07f else 1f, label = "dockFocus")
         val shape = RoundedCornerShape(17.dp)
         Column(
             Modifier.width(62.dp).height(58.dp).graphicsLayer { scaleX = scale; scaleY = scale }
@@ -449,6 +450,7 @@ object DrawerOverlayService {
         val shape = RoundedCornerShape(15.dp)
         Column(
             Modifier.width(62.dp).height(58.dp).onFocusChanged { focused = it.isFocused }
+                .shadow(if (focused && focusGlow) 22.dp else 5.dp, shape, clip = false)
                 .background(if (focused) Color(0xFF3B2B70) else Color(0xFF1B2639), shape)
                 .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFB58CFF), shape) else Modifier)
                 .clickable(onClick = onClick).padding(vertical = 8.dp, horizontal = 5.dp),
@@ -468,11 +470,12 @@ object DrawerOverlayService {
         onClick: () -> Unit
     ) {
         var focused by remember(app.packageName) { mutableStateOf(false) }
-        val scale = if (focused) 1.06f else 1f
+        val scale by animateFloatAsState(if (focused) 1.06f else 1f, label = "gridFocus")
         val shape = RoundedCornerShape(17.dp)
         Column(
             Modifier.fillMaxWidth().height(96.dp).graphicsLayer { scaleX = scale; scaleY = scale }
                 .onFocusChanged { focused = it.isFocused }
+                .shadow(if (focused && focusGlow) 22.dp else 5.dp, shape, clip = false)
                 .background(if (focused) Color(0xFF3A2B70) else Color(0xFF1B2639), shape)
                 .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFB58CFF), shape) else Modifier)
                 .clickable(onClick = onClick).padding(9.dp),
