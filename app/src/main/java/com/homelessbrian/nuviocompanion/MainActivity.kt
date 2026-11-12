@@ -228,7 +228,6 @@ private fun PanelCard(title: String, description: String, content: @Composable C
         Text(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold); Text(description, color = Muted, fontSize = 13.sp); content()
     }
 }
-@Composable
 private fun isCompanionAccessibilityEnabled(context: Context): Boolean {
     val expected = ComponentName(context, RemoteKeyAccessibilityService::class.java).flattenToString()
     val enabled = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
