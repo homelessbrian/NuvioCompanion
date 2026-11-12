@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
+import android.graphics.drawable.Drawable
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.WindowManager
@@ -25,6 +26,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items as columnItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -231,6 +233,8 @@ object DrawerOverlayService {
         var allApps by remember { mutableStateOf(AppCatalog.load(context, true)) }
         val iconPacks = remember { IconPackManager.installed(context) }
         var selectedIconPack by remember { mutableStateOf(DrawerSettings.iconPack(context)) }
+        var editingIconFor by remember { mutableStateOf<String?>(null) }
+        val iconPackEntries = remember(selectedIconPack) { IconPackManager.entries(context, selectedIconPack) }
         var showingSettings by remember { mutableStateOf(false) }
         val settingsFocusRequester = remember { FocusRequester() }
         LaunchedEffect(showingSettings) { if (showingSettings) { androidx.compose.runtime.withFrameNanos { }; settingsFocusRequester.requestFocus() } }
@@ -342,9 +346,11 @@ object DrawerOverlayService {
                             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 7.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Image(app.icon.toBitmap(96, 96).asImageBitmap(), app.label, Modifier.size(46.dp))
+                            Image(app.icon.toBitmapPreservingAspect(96).asImageBitmap(), app.label, Modifier.size(46.dp), contentScale = ContentScale.Fit)
                             Spacer(Modifier.width(14.dp))
                             Text(app.label, color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 1)
+                            DrawerAction("ICON", false) { editingIconFor = app.packageName }
+                            Spacer(Modifier.width(8.dp))
                             DrawerAction(if (app.packageName in favorites) "★" else "☆", app.packageName in favorites) {
                                 favorites = if (app.packageName in favorites) favorites - app.packageName else favorites + app.packageName
                                 DrawerSettings.setFavorites(context, favorites)
@@ -358,6 +364,51 @@ object DrawerOverlayService {
                                 }
                             )
                         }
+                    }
+                    editingIconFor?.let { packageName ->
+                        val app = allApps.firstOrNull { it.packageName == packageName }
+                        AlertDialog(
+                            onDismissRequest = { editingIconFor = null },
+                            title = { Text("Choose icon for ${app?.label ?: packageName}") },
+                            text = {
+                                if (selectedIconPack.isNullOrBlank()) {
+                                    Text("Select an icon pack above before choosing individual icons.")
+                                } else if (iconPackEntries.isEmpty()) {
+                                    Text("This pack does not expose a readable appfilter.xml icon list.")
+                                } else {
+                                    LazyColumn(Modifier.heightIn(max = 440.dp)) {
+                                        item {
+                                            DrawerAction("USE PACK DEFAULT", false) {
+                                                DrawerSettings.setAppIconOverride(context, packageName, null)
+                                                allApps = AppCatalog.load(context, true)
+                                                editingIconFor = null
+                                            }
+                                        }
+                                        items(iconPackEntries, key = { it.component + it.drawableName }) { entry ->
+                                            Row(
+                                                Modifier.fillMaxWidth().clickable {
+                                                    DrawerSettings.setAppIconOverride(context, packageName, entry.drawableName)
+                                                    allApps = AppCatalog.load(context, true)
+                                                    editingIconFor = null
+                                                }.padding(vertical = 7.dp, horizontal = 4.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                val preview = remember(selectedIconPack, entry.drawableName) {
+                                                    selectedIconPack?.let { IconPackManager.drawable(context, it, entry.drawableName) }
+                                                }
+                                                if (preview != null) Image(preview.toBitmapPreservingAspect(96).asImageBitmap(), entry.drawableName, Modifier.size(42.dp), contentScale = ContentScale.Fit)
+                                                Spacer(Modifier.width(12.dp))
+                                                Column(Modifier.weight(1f)) {
+                                                    Text(entry.drawableName, color = Color.White, fontSize = 12.sp, maxLines = 1)
+                                                    Text(entry.component.removePrefix("ComponentInfo{").substringBefore('/'), color = Color(0xFFB3B3B3), fontSize = 9.sp, maxLines = 1)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = { DrawerAction("CLOSE", false) { editingIconFor = null } }
+                        )
                     }
                 }
             } else if (isCenter) {
@@ -474,7 +525,7 @@ object DrawerOverlayService {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(88.dp), contentScale = ContentScale.FillBounds)
+            if (showIcons) Image(app.icon.toBitmapPreservingAspect(256).asImageBitmap(), app.label, Modifier.size(88.dp), contentScale = ContentScale.Fit)
             if (showNames) Text(app.label, color = Color.White, fontSize = 9.sp, maxLines = 1, modifier = Modifier.padding(top = 4.dp))
         }
     }
@@ -495,7 +546,7 @@ object DrawerOverlayService {
                 .clickable(onClick = onClick).focusable().padding(vertical = 4.dp, horizontal = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (showIcons) Image(app.icon.toBitmap(112, 112).asImageBitmap(), app.label, Modifier.size(68.dp), contentScale = ContentScale.FillBounds)
+            if (showIcons) Image(app.icon.toBitmapPreservingAspect(224).asImageBitmap(), app.label, Modifier.size(68.dp), contentScale = ContentScale.Fit)
             if (showNames) Text(app.label, color = Color.White, fontSize = 9.sp, maxLines = 1)
         }
     }
@@ -519,9 +570,18 @@ object DrawerOverlayService {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(92.dp), contentScale = ContentScale.FillBounds)
+            if (showIcons) Image(app.icon.toBitmapPreservingAspect(256).asImageBitmap(), app.label, Modifier.size(92.dp), contentScale = ContentScale.Fit)
             if (showNames) Text(app.label, color = Color.White, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(top = 7.dp))
         }
+    }
+
+    private fun Drawable.toBitmapPreservingAspect(maxSize: Int): android.graphics.Bitmap {
+        val sourceWidth = intrinsicWidth.takeIf { it > 0 } ?: maxSize
+        val sourceHeight = intrinsicHeight.takeIf { it > 0 } ?: maxSize
+        val scale = maxSize.toFloat() / maxOf(sourceWidth, sourceHeight)
+        val width = (sourceWidth * scale).toInt().coerceAtLeast(1)
+        val height = (sourceHeight * scale).toInt().coerceAtLeast(1)
+        return toBitmap(width, height)
     }
 
     @Composable
