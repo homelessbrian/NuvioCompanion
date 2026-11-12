@@ -39,6 +39,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
@@ -228,6 +230,8 @@ object DrawerOverlayService {
         val iconPacks = remember { IconPackManager.installed(context) }
         var selectedIconPack by remember { mutableStateOf(DrawerSettings.iconPack(context)) }
         var showingSettings by remember { mutableStateOf(false) }
+        val settingsFocusRequester = remember { FocusRequester() }
+        LaunchedEffect(showingSettings) { if (showingSettings) settingsFocusRequester.requestFocus() }
         var hidden by remember { mutableStateOf(DrawerSettings.hidden(context)) }
         var favorites by remember { mutableStateOf(DrawerSettings.favorites(context)) }
         var position by remember { mutableStateOf(DrawerSettings.position(context)) }
@@ -270,7 +274,7 @@ object DrawerOverlayService {
                                 Text("APP DRAWER SETTINGS", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                                 Text("Personalize your app drawer", color = Color(0xFFB3B3B3), fontSize = 12.sp)
                             }
-                            DrawerAction("DONE", true) { showingSettings = false }
+                            DrawerAction("DONE", true, Modifier.focusRequester(settingsFocusRequester)) { showingSettings = false }
                         }
                     }
                     item {
@@ -434,14 +438,16 @@ object DrawerOverlayService {
     @Composable
     private fun DrawerAction(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
         val shape = RoundedCornerShape(12.dp)
+        var focused by remember(label) { mutableStateOf(false) }
         Text(
             label,
             color = if (selected) Color(0xFF111111) else Color(0xFFE0E0E0),
             fontSize = 11.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            fontWeight = if (selected || focused) FontWeight.Bold else FontWeight.Medium,
             modifier = modifier
-                .background(if (selected) Color(0xFFF5F5F5) else Color(0xFF2D2D2D), shape)
-                .then(if (selected) Modifier.border(1.dp, Color(0xFFFFFFFF), shape) else Modifier)
+                .onFocusChanged { focused = it.isFocused }
+                .background(if (selected) Color(0xFFF5F5F5) else if (focused) Color(0xFF3A3A3A) else Color(0xFF2D2D2D), shape)
+                .then(if (selected || focused) Modifier.border(1.dp, Color(0xFFFFFFFF), shape) else Modifier)
                 .clickable(onClick = onClick)
                 .focusable()
                 .padding(horizontal = 13.dp, vertical = 10.dp)
