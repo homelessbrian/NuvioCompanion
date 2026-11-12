@@ -446,7 +446,7 @@ object DrawerOverlayService {
         val scale by animateFloatAsState(if (focused) 1.07f else 1f, label = "dockFocus")
         val shape = RoundedCornerShape(17.dp)
         Column(
-            Modifier.width(74.dp).height(76.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+            Modifier.width(74.dp).height(88.dp).graphicsLayer { scaleX = scale; scaleY = scale }
                 .onFocusChanged { focused = it.isFocused }
                 .shadow(if (focused && focusGlow) 22.dp else 5.dp, shape, clip = false)
                 .background(if (focused) Color(0xFF3B2B70) else Color(0xFF1B2639), shape)
@@ -471,14 +471,14 @@ object DrawerOverlayService {
         var focused by remember(app.packageName) { mutableStateOf(false) }
         val shape = RoundedCornerShape(15.dp)
         Column(
-            Modifier.width(52.dp).height(60.dp).onFocusChanged { focused = it.isFocused }
+            Modifier.width(52.dp).height(68.dp).onFocusChanged { focused = it.isFocused }
                 .shadow(if (focused && focusGlow) 22.dp else 5.dp, shape, clip = false)
                 .background(if (focused) Color(0xFF3B2B70) else Color(0xFF1B2639), shape)
                 .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFB58CFF), shape) else Modifier)
                 .clickable(onClick = onClick).padding(vertical = 8.dp, horizontal = 5.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (showIcons) Image(app.icon.toBitmap(112, 112).asImageBitmap(), app.label, Modifier.size(42.dp))
+            if (showIcons) Image(app.icon.toBitmap(112, 112).asImageBitmap(), app.label, Modifier.size(40.dp))
             if (showNames) Text(app.label, color = Color.White, fontSize = 9.sp, maxLines = 1)
         }
     }
