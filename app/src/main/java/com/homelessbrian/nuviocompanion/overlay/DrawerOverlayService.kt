@@ -9,6 +9,7 @@ import android.view.KeyEvent
 import android.view.WindowManager
 import android.os.Build
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -127,8 +128,8 @@ object DrawerOverlayService {
                 params.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             }
             DrawerPosition.LEFT -> {
-                params.width = (metrics.widthPixels * .15f).toInt()
-                params.height = (metrics.heightPixels * .88f).toInt()
+                params.width = (metrics.widthPixels * .075f).toInt()
+                params.height = (metrics.heightPixels * .82f).toInt()
                 params.gravity = Gravity.START or Gravity.CENTER_VERTICAL
             }
             DrawerPosition.RIGHT -> {
@@ -157,7 +158,7 @@ object DrawerOverlayService {
             val (width, height, gravity) = when (position) {
                 DrawerPosition.TOP -> Triple((service.resources.displayMetrics.widthPixels * .68f).toInt(), (service.resources.displayMetrics.heightPixels * .18f).toInt(), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
                 DrawerPosition.BOTTOM -> Triple((service.resources.displayMetrics.widthPixels * .68f).toInt(), (service.resources.displayMetrics.heightPixels * .18f).toInt(), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
-                DrawerPosition.LEFT -> Triple((service.resources.displayMetrics.widthPixels * .15f).toInt(), (service.resources.displayMetrics.heightPixels * .88f).toInt(), Gravity.START or Gravity.CENTER_VERTICAL)
+                DrawerPosition.LEFT -> Triple((service.resources.displayMetrics.widthPixels * .075f).toInt(), (service.resources.displayMetrics.heightPixels * .82f).toInt(), Gravity.START or Gravity.CENTER_VERTICAL)
                 DrawerPosition.RIGHT -> Triple((service.resources.displayMetrics.widthPixels * .15f).toInt(), (service.resources.displayMetrics.heightPixels * .88f).toInt(), Gravity.END or Gravity.CENTER_VERTICAL)
                 DrawerPosition.CENTER -> Triple((service.resources.displayMetrics.widthPixels * .72f).toInt(), (service.resources.displayMetrics.heightPixels * .68f).toInt(), Gravity.CENTER)
             }
@@ -249,81 +250,95 @@ object DrawerOverlayService {
                     val back = event.key == Key.Back || event.key == Key.Escape
                     if (back && event.type == KeyEventType.KeyUp) { onClose(); true } else back
                 }
-                .shadow(18.dp, RoundedCornerShape(24.dp), clip = false)
-                .border(1.dp, Color.White.copy(alpha = 0.20f), RoundedCornerShape(24.dp))
-                .padding(3.dp),
+                .shadow(18.dp, RoundedCornerShape(24.dp), clip = false),
             shape = RoundedCornerShape(24.dp),
-            color = panel
+            color = panel,
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f))
         ) {
             if (showingSettings) {
-                Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("APP DRAWER SETTINGS", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                            Text("Make the drawer feel right on your screen", color = Color(0xFF9DAAC2), fontSize = 12.sp)
-                        }
-                        DrawerAction("DONE", true) { showingSettings = false }
-                    }
-                    Text("POSITION", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        DrawerPosition.entries.forEach { option ->
-                            DrawerAction(option.name, position == option, Modifier.weight(1f)) {
-                                position = option
-                                DrawerSettings.setPosition(context, option)
-                                updatePosition(context, option)
+                LazyColumn(
+                    Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    contentPadding = PaddingValues(bottom = 24.dp)
+                ) {
+                    item {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("APP DRAWER SETTINGS", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                                Text("Personalize your app drawer", color = Color(0xFF9DAAC2), fontSize = 12.sp)
                             }
+                            DrawerAction("DONE", true) { showingSettings = false }
                         }
                     }
-                    Text("APPEARANCE", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DrawerAction(if (showNames) "✓  APP NAMES" else "APP NAMES", showNames) {
-                            showNames = !showNames; DrawerSettings.setShowNames(context, showNames)
-                        }
-                        DrawerAction(if (showIcons) "✓  APP ICONS" else "APP ICONS", showIcons) {
-                            showIcons = !showIcons; DrawerSettings.setShowIcons(context, showIcons)
-                        }
-                        DrawerAction(if (focusGlow) "✓  FOCUS GLOW" else "FOCUS GLOW", focusGlow) {
-                            focusGlow = !focusGlow; DrawerSettings.setFocusGlow(context, focusGlow)
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("PANEL OPACITY", color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                        listOf(0.72f, 0.84f, 0.94f).forEachIndexed { index, value ->
-                            DrawerAction(listOf("70%", "85%", "95%")[index], opacity == value) {
-                                opacity = value; DrawerSettings.setOpacity(context, value)
-                            }
-                        }
-                    }
-                    DividerLine()
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("MANAGE APPS", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                            Text("Choose what appears and pin favorites to the front", color = Color(0xFF9DAAC2), fontSize = 11.sp)
-                        }
-                        Text("${visibleApps.size} visible / ${allApps.size} installed", color = accent, fontSize = 11.sp)
-                    }
-                    LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        columnItems(allApps, key = { it.packageName }) { app ->
-                            Row(
-                                Modifier.fillMaxWidth().background(tile, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Image(app.icon.toBitmap(80, 80).asImageBitmap(), app.label, Modifier.size(34.dp))
-                                Spacer(Modifier.width(12.dp))
-                                Text(app.label, color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f), maxLines = 1)
-                                DrawerAction(if (app.packageName in favorites) "★" else "☆", app.packageName in favorites) {
-                                    favorites = if (app.packageName in favorites) favorites - app.packageName else favorites + app.packageName
-                                    DrawerSettings.setFavorites(context, favorites)
-                                }
-                                Spacer(Modifier.width(8.dp))
-                                Switch(
-                                    checked = app.packageName !in hidden,
-                                    onCheckedChange = { visible ->
-                                        hidden = if (visible) hidden - app.packageName else hidden + app.packageName
-                                        DrawerSettings.setHidden(context, hidden)
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                            Text("POSITION", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                DrawerPosition.entries.forEach { option ->
+                                    DrawerAction(option.name, position == option, Modifier.weight(1f)) {
+                                        position = option
+                                        DrawerSettings.setPosition(context, option)
                                     }
-                                )
+                                }
                             }
+                        }
+                    }
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                            Text("APPEARANCE", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                DrawerAction(if (showNames) "APP NAMES  ✓" else "APP NAMES", showNames) {
+                                    showNames = !showNames
+                                    DrawerSettings.setShowNames(context, showNames)
+                                }
+                                DrawerAction(if (showIcons) "APP ICONS  ✓" else "APP ICONS", showIcons) {
+                                    showIcons = !showIcons
+                                    DrawerSettings.setShowIcons(context, showIcons)
+                                }
+                                DrawerAction(if (focusGlow) "FOCUS GLOW  ✓" else "FOCUS GLOW", focusGlow) {
+                                    focusGlow = !focusGlow
+                                    DrawerSettings.setFocusGlow(context, focusGlow)
+                                }
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("PANEL OPACITY", color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                                listOf(0.72f, 0.84f, 0.94f).forEachIndexed { index, value ->
+                                    DrawerAction(listOf("70%", "85%", "95%")[index], opacity == value) {
+                                        opacity = value
+                                        DrawerSettings.setOpacity(context, value)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            DividerLine()
+                            Text("MANAGE APPS", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text("Choose which apps appear. Pin favorites to keep them first.", color = Color(0xFF9DAAC2), fontSize = 11.sp)
+                            Text("${visibleApps.size} visible · ${allApps.size} installed", color = accent, fontSize = 11.sp)
+                        }
+                    }
+                    items(allApps, key = { it.packageName }) { app ->
+                        Row(
+                            Modifier.fillMaxWidth().background(tile, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Image(app.icon.toBitmap(96, 96).asImageBitmap(), app.label, Modifier.size(46.dp))
+                            Spacer(Modifier.width(14.dp))
+                            Text(app.label, color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 1)
+                            DrawerAction(if (app.packageName in favorites) "★" else "☆", app.packageName in favorites) {
+                                favorites = if (app.packageName in favorites) favorites - app.packageName else favorites + app.packageName
+                                DrawerSettings.setFavorites(context, favorites)
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Switch(
+                                checked = app.packageName !in hidden,
+                                onCheckedChange = { visible ->
+                                    hidden = if (visible) hidden - app.packageName else hidden + app.packageName
+                                    DrawerSettings.setHidden(context, hidden)
+                                }
+                            )
                         }
                     }
                 }
@@ -431,7 +446,7 @@ object DrawerOverlayService {
         val scale by animateFloatAsState(if (focused) 1.07f else 1f, label = "dockFocus")
         val shape = RoundedCornerShape(17.dp)
         Column(
-            Modifier.width(62.dp).height(58.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+            Modifier.width(74.dp).height(76.dp).graphicsLayer { scaleX = scale; scaleY = scale }
                 .onFocusChanged { focused = it.isFocused }
                 .shadow(if (focused && focusGlow) 22.dp else 5.dp, shape, clip = false)
                 .background(if (focused) Color(0xFF3B2B70) else Color(0xFF1B2639), shape)
@@ -440,7 +455,7 @@ object DrawerOverlayService {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(43.dp))
+            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(52.dp))
             if (showNames) Text(app.label, color = Color.White, fontSize = 9.sp, maxLines = 1, modifier = Modifier.padding(top = 4.dp))
         }
     }
@@ -456,7 +471,7 @@ object DrawerOverlayService {
         var focused by remember(app.packageName) { mutableStateOf(false) }
         val shape = RoundedCornerShape(15.dp)
         Column(
-            Modifier.width(62.dp).height(58.dp).onFocusChanged { focused = it.isFocused }
+            Modifier.width(74.dp).height(70.dp).onFocusChanged { focused = it.isFocused }
                 .shadow(if (focused && focusGlow) 22.dp else 5.dp, shape, clip = false)
                 .background(if (focused) Color(0xFF3B2B70) else Color(0xFF1B2639), shape)
                 .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFB58CFF), shape) else Modifier)
@@ -489,7 +504,7 @@ object DrawerOverlayService {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(50.dp))
+            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(58.dp))
             if (showNames) Text(app.label, color = Color.White, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(top = 7.dp))
         }
     }
