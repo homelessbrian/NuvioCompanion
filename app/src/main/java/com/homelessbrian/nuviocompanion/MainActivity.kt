@@ -1,5 +1,6 @@
 package com.homelessbrian.nuviocompanion
 
+import android.app.role.RoleManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -78,13 +79,31 @@ class MainActivity : ComponentActivity() {
     private fun launchSelectedNuvio(): Boolean =
         DrawerSettings.selectedNuvio(this)?.let { AppCatalog.launch(this, it) } ?: false
     private fun showSettings() {
-        setContent { MaterialTheme(colorScheme = darkColorScheme(primary = Accent, background = Ink, surface = Panel)) { CompanionSettings(::openAccessibilitySettings) } }
+        setContent { MaterialTheme(colorScheme = darkColorScheme(primary = Accent, background = Ink, surface = Panel)) { CompanionSettings(::openAccessibilitySettings, ::requestHomeRole) } }
     }
     private fun openAccessibilitySettings() = startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+
+    private fun requestHomeRole() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val roles = getSystemService(RoleManager::class.java)
+            if (roles != null && roles.isRoleAvailable(RoleManager.ROLE_HOME) && !roles.isRoleHeld(RoleManager.ROLE_HOME)) {
+                try {
+                    startActivity(roles.createRequestRoleIntent(RoleManager.ROLE_HOME))
+                    return
+                } catch (_: Exception) { }
+            } else if (roles?.isRoleHeld(RoleManager.ROLE_HOME) == true) {
+                return
+            }
+        }
+        val candidates = listOf(Settings.ACTION_HOME_SETTINGS, Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS, Settings.ACTION_SETTINGS)
+        candidates.firstOrNull { Intent(it).resolveActivity(packageManager) != null }?.let { action ->
+            runCatching { startActivity(Intent(action)) }
+        }
+    }
 }
 
 @Composable
-private fun CompanionSettings(onAccessibility: () -> Unit) {
+private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var apps by remember { mutableStateOf(AppCatalog.load(context, true)) }
     var selectedNuvio by remember { mutableStateOf(DrawerSettings.selectedNuvio(context)) }
@@ -192,8 +211,8 @@ private fun CompanionSettings(onAccessibility: () -> Unit) {
                         Button(
                             enabled = accessibilityEnabled && !recording,
                             onClick = { DrawerSettings.setRecordingTarget(context, "primary"); DrawerSettings.setRecording(context, true); recording = true },
-                            modifier = Modifier.heightIn(min = 56.dp), colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color(0xFF111111), disabledContainerColor = panel2, disabledContentColor = muted)
-                        ) { Text(if (recording) "Press a button on your remote…" else if (accessibilityEnabled) "Record remote button" else "Enable accessibility first") }
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp), colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color(0xFF111111), disabledContainerColor = panel2, disabledContentColor = muted)
+                        ) { Text(if (recording) "Press a button on your remote…" else if (accessibilityEnabled) "Record remote button" else "Enable accessibility first", maxLines = 1, fontSize = 13.sp) }
                         if (mode == ShortcutMode.COMBINATION) {
                             TextButton(
                                 enabled = accessibilityEnabled && !recording,
@@ -211,6 +230,9 @@ private fun CompanionSettings(onAccessibility: () -> Unit) {
                         Text("HOME EXPERIENCE", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         Text("Optional Home behavior", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                         Text("If you choose Companion as your device's Home app, Home opens your selected Nuvio app. This is optional; the remote shortcut opens the drawer without changing your Home app.", color = muted, fontSize = 11.sp)
+                        OutlinedButton(onClick = onSetLauncher, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
+                            Text("Set as Home launcher", maxLines = 1)
+                        }
                         Text("SELECTED APP", color = muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         if (nuvioApps.isEmpty()) {
                             Text("No Nuvio app detected. Install one, then reopen Companion.", color = muted, fontSize = 11.sp)
