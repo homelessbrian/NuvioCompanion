@@ -28,7 +28,7 @@ object DrawerSettings {
     fun setOrder(context: Context, value: List<String>) { prefs(context).edit().putString("app_order", value.joinToString("|")).apply() }
     fun selectedNuvio(context: Context) = prefs(context).getString("selected_nuvio", null)
     fun setSelectedNuvio(context: Context, value: String?) { prefs(context).edit().putString("selected_nuvio", value).apply() }
-    fun showNames(context: Context) = prefs(context).getBoolean("drawer_show_names", true)
+    fun showNames(context: Context) = prefs(context).getBoolean("drawer_show_names", false)
     fun setShowNames(context: Context, value: Boolean) { prefs(context).edit().putBoolean("drawer_show_names", value).apply() }
     fun showIcons(context: Context) = prefs(context).getBoolean("drawer_show_icons", true)
     fun setShowIcons(context: Context, value: Boolean) { prefs(context).edit().putBoolean("drawer_show_icons", value).apply() }
