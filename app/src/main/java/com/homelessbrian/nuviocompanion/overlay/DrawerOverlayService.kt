@@ -11,7 +11,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -29,16 +28,12 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -117,7 +112,7 @@ object DrawerOverlayService {
                 params.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             }
             DrawerPosition.LEFT -> {
-                params.width = (metrics.widthPixels * .38f).toInt()
+                params.width = (metrics.widthPixels * .22f).toInt()
                 params.height = WindowManager.LayoutParams.MATCH_PARENT
                 params.gravity = Gravity.START or Gravity.CENTER_VERTICAL
             }
@@ -147,7 +142,7 @@ object DrawerOverlayService {
             val (width, height, gravity) = when (position) {
                 DrawerPosition.TOP -> Triple(WindowManager.LayoutParams.MATCH_PARENT, (service.resources.displayMetrics.heightPixels * .36f).toInt(), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
                 DrawerPosition.BOTTOM -> Triple(WindowManager.LayoutParams.MATCH_PARENT, (service.resources.displayMetrics.heightPixels * .36f).toInt(), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
-                DrawerPosition.LEFT -> Triple((service.resources.displayMetrics.widthPixels * .38f).toInt(), WindowManager.LayoutParams.MATCH_PARENT, Gravity.START or Gravity.CENTER_VERTICAL)
+                DrawerPosition.LEFT -> Triple((service.resources.displayMetrics.widthPixels * .22f).toInt(), WindowManager.LayoutParams.MATCH_PARENT, Gravity.START or Gravity.CENTER_VERTICAL)
                 DrawerPosition.RIGHT -> Triple((service.resources.displayMetrics.widthPixels * .38f).toInt(), WindowManager.LayoutParams.MATCH_PARENT, Gravity.END or Gravity.CENTER_VERTICAL)
                 DrawerPosition.CENTER -> Triple((service.resources.displayMetrics.widthPixels * .84f).toInt(), (service.resources.displayMetrics.heightPixels * .78f).toInt(), Gravity.CENTER)
             }
@@ -366,7 +361,7 @@ object DrawerOverlayService {
                         Spacer(Modifier.width(8.dp))
                         DrawerAction("⚙", false) { showingSettings = true }
                         Spacer(Modifier.width(8.dp))
-                        DrawerAction("×", false, onClose)
+                        DrawerAction("×", false, onClick = onClose)
                     }
                     Spacer(Modifier.height(8.dp))
                     LazyRow(
@@ -409,7 +404,7 @@ object DrawerOverlayService {
         onClick: () -> Unit
     ) {
         var focused by remember(app.packageName) { mutableStateOf(false) }
-        val scale by androidx.compose.animation.core.animateFloatAsState(if (focused) 1.07f else 1f, label = "dockFocus")
+        val scale = if (focused) 1.07f else 1f
         val shape = RoundedCornerShape(17.dp)
         Column(
             Modifier.width(76.dp).graphicsLayer { scaleX = scale; scaleY = scale }
@@ -456,7 +451,7 @@ object DrawerOverlayService {
         onClick: () -> Unit
     ) {
         var focused by remember(app.packageName) { mutableStateOf(false) }
-        val scale by androidx.compose.animation.core.animateFloatAsState(if (focused) 1.06f else 1f, label = "gridFocus")
+        val scale = if (focused) 1.06f else 1f
         val shape = RoundedCornerShape(17.dp)
         Column(
             Modifier.fillMaxWidth().height(116.dp).graphicsLayer { scaleX = scale; scaleY = scale }
