@@ -421,6 +421,7 @@ object DrawerOverlayService {
                             }
                         }
                     }
+                }
             } else if (isCenter) {
                 Column(Modifier.fillMaxSize().padding(22.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
