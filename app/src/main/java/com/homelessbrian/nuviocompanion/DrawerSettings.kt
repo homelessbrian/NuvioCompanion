@@ -8,16 +8,16 @@ enum class ShortcutMode { SINGLE, DOUBLE, LONG, COMBINATION }
 object DrawerSettings {
     private const val PREFS = "companion_preferences"
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-
     fun position(context: Context) = runCatching { DrawerPosition.valueOf(prefs(context).getString("position", "BOTTOM")!!) }.getOrDefault(DrawerPosition.BOTTOM)
     fun setPosition(context: Context, value: DrawerPosition) { prefs(context).edit().putString("position", value.name).apply() }
-
     fun shortcutMode(context: Context) = runCatching { ShortcutMode.valueOf(prefs(context).getString("shortcut_mode", "SINGLE")!!) }.getOrDefault(ShortcutMode.SINGLE)
     fun setShortcutMode(context: Context, value: ShortcutMode) { prefs(context).edit().putString("shortcut_mode", value.name).apply() }
     fun keyCode(context: Context) = prefs(context).getInt("shortcut_key", 0)
     fun setKeyCode(context: Context, value: Int) { prefs(context).edit().putInt("shortcut_key", value).apply() }
     fun secondKeyCode(context: Context) = prefs(context).getInt("shortcut_key_2", 0)
     fun setSecondKeyCode(context: Context, value: Int) { prefs(context).edit().putInt("shortcut_key_2", value).apply() }
+    fun recordingTarget(context: Context) = prefs(context).getString("recording_target", "primary") ?: "primary"
+    fun setRecordingTarget(context: Context, value: String) { prefs(context).edit().putString("recording_target", value).apply() }
     fun isRecording(context: Context) = prefs(context).getBoolean("recording", false)
     fun setRecording(context: Context, value: Boolean) { prefs(context).edit().putBoolean("recording", value).apply() }
     fun hidden(context: Context) = prefs(context).getStringSet("hidden_packages", emptySet())?.toSet() ?: emptySet()

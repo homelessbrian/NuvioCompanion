@@ -22,7 +22,8 @@ class RemoteKeyAccessibilityService : AccessibilityService() {
     override fun onKeyEvent(event: KeyEvent): Boolean {
         if (DrawerSettings.isRecording(this)) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                DrawerSettings.setKeyCode(this, event.keyCode)
+                if (DrawerSettings.recordingTarget(this) == "secondary") DrawerSettings.setSecondKeyCode(this, event.keyCode)
+                else DrawerSettings.setKeyCode(this, event.keyCode)
                 DrawerSettings.setRecording(this, false)
                 sendBroadcast(Intent(ACTION_SHORTCUT_RECORDED).setPackage(packageName))
                 return true
@@ -40,17 +41,10 @@ class RemoteKeyAccessibilityService : AccessibilityService() {
                         ShortcutMode.SINGLE -> trigger()
                         ShortcutMode.DOUBLE -> {
                             val waiting = pendingDouble
-                            if (waiting != null) {
-                                handler.removeCallbacks(waiting); pendingDouble = null; trigger()
-                            } else {
-                                val task = Runnable { pendingDouble = null }
-                                pendingDouble = task
-                                handler.postDelayed(task, DOUBLE_PRESS_WINDOW)
-                            }
+                            if (waiting != null) { handler.removeCallbacks(waiting); pendingDouble = null; trigger() }
+                            else { val task = Runnable { pendingDouble = null }; pendingDouble = task; handler.postDelayed(task, DOUBLE_PRESS_WINDOW) }
                         }
-                        ShortcutMode.LONG -> handler.postDelayed({
-                            if (primary in downKeys) { longPressFired = true; trigger() }
-                        }, LONG_PRESS_TIMEOUT)
+                        ShortcutMode.LONG -> handler.postDelayed({ if (primary in downKeys) { longPressFired = true; trigger() } }, LONG_PRESS_TIMEOUT)
                         ShortcutMode.COMBINATION -> {
                             val second = DrawerSettings.secondKeyCode(this)
                             if (second != 0 && second in downKeys) trigger()
@@ -61,9 +55,7 @@ class RemoteKeyAccessibilityService : AccessibilityService() {
             }
             KeyEvent.ACTION_UP -> {
                 downKeys.remove(event.keyCode)
-                if (event.keyCode == primary && DrawerSettings.shortcutMode(this) == ShortcutMode.LONG && !longPressFired) {
-                    handler.removeCallbacksAndMessages(null)
-                }
+                if (event.keyCode == primary && DrawerSettings.shortcutMode(this) == ShortcutMode.LONG && !longPressFired) handler.removeCallbacksAndMessages(null)
             }
         }
         return false
