@@ -84,6 +84,41 @@ object DrawerOverlayService {
         root = null; owner = null; windowManager = null
     }
 
+    private fun updatePosition(context: Context, position: DrawerPosition) {
+        val view = root ?: return
+        val wm = windowManager ?: return
+        val metrics = context.resources.displayMetrics
+        val params = (view.layoutParams as? WindowManager.LayoutParams) ?: return
+        when (position) {
+            DrawerPosition.TOP -> {
+                params.width = WindowManager.LayoutParams.MATCH_PARENT
+                params.height = (metrics.heightPixels * .36f).toInt()
+                params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            }
+            DrawerPosition.BOTTOM -> {
+                params.width = WindowManager.LayoutParams.MATCH_PARENT
+                params.height = (metrics.heightPixels * .36f).toInt()
+                params.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            }
+            DrawerPosition.LEFT -> {
+                params.width = (metrics.widthPixels * .38f).toInt()
+                params.height = WindowManager.LayoutParams.MATCH_PARENT
+                params.gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            }
+            DrawerPosition.RIGHT -> {
+                params.width = (metrics.widthPixels * .38f).toInt()
+                params.height = WindowManager.LayoutParams.MATCH_PARENT
+                params.gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            }
+            DrawerPosition.CENTER -> {
+                params.width = (metrics.widthPixels * .84f).toInt()
+                params.height = (metrics.heightPixels * .78f).toInt()
+                params.gravity = Gravity.CENTER
+            }
+        }
+        runCatching { wm.updateViewLayout(view, params) }
+    }
+
     private fun open(service: AccessibilityService) {
         var wm: WindowManager? = null
         var lifecycleOwner: OverlayLifecycleOwner? = null
@@ -204,6 +239,7 @@ object DrawerOverlayService {
                                 DrawerAction(option.name.lowercase().replaceFirstChar { it.uppercase() }, position == option) {
                                     position = option
                                     DrawerSettings.setPosition(context, option)
+                                    updatePosition(context, option)
                                 }
                             }
                         }
