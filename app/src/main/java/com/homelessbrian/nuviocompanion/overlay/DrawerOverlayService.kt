@@ -64,6 +64,7 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.homelessbrian.nuviocompanion.AppCatalog
+import com.homelessbrian.nuviocompanion.IconPackManager
 import com.homelessbrian.nuviocompanion.DrawerPosition
 import com.homelessbrian.nuviocompanion.DrawerSettings
 
@@ -223,7 +224,9 @@ object DrawerOverlayService {
 
     @Composable
     private fun DrawerContent(context: Context, onClose: () -> Unit, onLaunch: (String) -> Unit) {
-        val allApps = remember { AppCatalog.load(context, true) }
+        var allApps by remember { mutableStateOf(AppCatalog.load(context, true)) }
+        val iconPacks = remember { IconPackManager.installed(context) }
+        var selectedIconPack by remember { mutableStateOf(DrawerSettings.iconPack(context)) }
         var showingSettings by remember { mutableStateOf(false) }
         var hidden by remember { mutableStateOf(DrawerSettings.hidden(context)) }
         var favorites by remember { mutableStateOf(DrawerSettings.favorites(context)) }
@@ -308,6 +311,16 @@ object DrawerOverlayService {
                                         DrawerSettings.setOpacity(context, value)
                                     }
                                 }
+                            }
+                        }
+                    }
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                            Text("ICON PACK", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                            Text(if (iconPacks.isEmpty()) "No compatible icon packs detected. Install an ADW-compatible icon pack to use custom icons." else "Choose an installed icon pack for your app drawer.", color = Color(0xFFB3B3B3), fontSize = 11.sp)
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                item { DrawerAction("SYSTEM", selectedIconPack == null) { selectedIconPack = null; DrawerSettings.setIconPack(context, null); allApps = AppCatalog.load(context, true) } }
+                                rowItems(iconPacks, key = { it.packageName }) { pack -> DrawerAction(pack.label, selectedIconPack == pack.packageName) { selectedIconPack = pack.packageName; DrawerSettings.setIconPack(context, pack.packageName); allApps = AppCatalog.load(context, true) } }
                             }
                         }
                     }
@@ -447,16 +460,16 @@ object DrawerOverlayService {
         val scale by animateFloatAsState(if (focused) 1.07f else 1f, label = "dockFocus")
         val shape = RoundedCornerShape(17.dp)
         Column(
-            Modifier.width(74.dp).height(88.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+            Modifier.width(78.dp).height(86.dp).graphicsLayer { scaleX = scale; scaleY = scale }
                 .onFocusChanged { focused = it.isFocused }
                 .shadow(if (focused && focusGlow) 22.dp else 5.dp, shape, clip = false)
-                .background(if (focused) Color(0xFF303030) else Color(0xFF1E1E1E), shape)
+                .background(if (focused) Color(0xFF303030) else Color.Transparent, shape)
                 .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFFFFFFF), shape) else Modifier)
                 .clickable(onClick = onClick).focusable().padding(vertical = 8.dp, horizontal = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(52.dp))
+            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(64.dp))
             if (showNames) Text(app.label, color = Color.White, fontSize = 9.sp, maxLines = 1, modifier = Modifier.padding(top = 4.dp))
         }
     }
@@ -472,14 +485,14 @@ object DrawerOverlayService {
         var focused by remember(app.packageName) { mutableStateOf(false) }
         val shape = RoundedCornerShape(15.dp)
         Column(
-            Modifier.width(52.dp).height(68.dp).onFocusChanged { focused = it.isFocused }
+            Modifier.width(60.dp).height(68.dp).onFocusChanged { focused = it.isFocused }
                 .shadow(if (focused && focusGlow) 22.dp else 5.dp, shape, clip = false)
                 .background(if (focused) Color(0xFF303030) else Color(0xFF1E1E1E), shape)
                 .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFFFFFFF), shape) else Modifier)
                 .clickable(onClick = onClick).focusable().padding(vertical = 8.dp, horizontal = 5.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (showIcons) Image(app.icon.toBitmap(112, 112).asImageBitmap(), app.label, Modifier.size(40.dp))
+            if (showIcons) Image(app.icon.toBitmap(112, 112).asImageBitmap(), app.label, Modifier.size(48.dp))
             if (showNames) Text(app.label, color = Color.White, fontSize = 9.sp, maxLines = 1)
         }
     }
@@ -505,7 +518,7 @@ object DrawerOverlayService {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(58.dp))
+            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(66.dp))
             if (showNames) Text(app.label, color = Color.White, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(top = 7.dp))
         }
     }
