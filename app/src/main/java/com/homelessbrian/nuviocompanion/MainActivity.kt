@@ -1,6 +1,5 @@
 package com.homelessbrian.nuviocompanion
 
-import android.app.role.RoleManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -9,7 +8,6 @@ import android.content.ComponentName
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -18,6 +16,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -77,44 +77,13 @@ class MainActivity : ComponentActivity() {
     private fun launchSelectedNuvio(): Boolean =
         DrawerSettings.selectedNuvio(this)?.let { AppCatalog.launch(this, it) } ?: false
     private fun showSettings() {
-        setContent { MaterialTheme(colorScheme = darkColorScheme(primary = Accent, background = Ink, surface = Panel)) { CompanionSettings(::openAccessibilitySettings, ::requestHomeRole) } }
+        setContent { MaterialTheme(colorScheme = darkColorScheme(primary = Accent, background = Ink, surface = Panel)) { CompanionSettings(::openAccessibilitySettings) } }
     }
     private fun openAccessibilitySettings() = startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-    private fun requestHomeRole() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val roles = getSystemService(RoleManager::class.java)
-            if (roles != null && roles.isRoleAvailable(RoleManager.ROLE_HOME) && !roles.isRoleHeld(RoleManager.ROLE_HOME)) {
-                try {
-                    startActivityForResult(roles.createRequestRoleIntent(RoleManager.ROLE_HOME), 410)
-                    return
-                } catch (_: Exception) {
-                    // Some TV firmware advertises the Home role but cannot open its chooser.
-                }
-            }
-        }
-
-        // Android TV and vendor firmware do not always expose ROLE_HOME.
-        // Fall back to the system Home-app settings page instead of silently doing nothing.
-        val settingsIntents = listOf(
-            Intent(Settings.ACTION_HOME_SETTINGS),
-            Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS),
-            Intent(Settings.ACTION_SETTINGS)
-        )
-        val settingsIntent = settingsIntents.firstOrNull { it.resolveActivity(packageManager) != null }
-        if (settingsIntent != null) {
-            try {
-                startActivity(settingsIntent)
-            } catch (_: Exception) {
-                Toast.makeText(this, "Open Android Settings and look for Home app or Default launcher.", Toast.LENGTH_LONG).show()
-            }
-        } else {
-            Toast.makeText(this, "Open Android Settings and look for Home app or Default launcher.", Toast.LENGTH_LONG).show()
-        }
-    }
 }
 
 @Composable
-private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> Unit) {
+private fun CompanionSettings(onAccessibility: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var apps by remember { mutableStateOf(AppCatalog.load(context, true)) }
     var selectedNuvio by remember { mutableStateOf(DrawerSettings.selectedNuvio(context)) }
@@ -124,7 +93,6 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
     var recording by remember { mutableStateOf(DrawerSettings.isRecording(context)) }
     var inputStatus by remember { mutableStateOf("Shortcut not configured") }
     var accessibilityEnabled by remember { mutableStateOf(isCompanionAccessibilityEnabled(context)) }
-    var refresh by remember { mutableIntStateOf(0) }
     val nuvioApps = apps.filter { it.label.contains("nuvio", true) || it.packageName.contains("nuvio", true) }
 
     DisposableEffect(Unit) {
@@ -150,7 +118,6 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
         else @Suppress("DEPRECATION") context.registerReceiver(receiver, filter)
         onDispose { runCatching { context.unregisterReceiver(receiver) } }
     }
-    LaunchedEffect(refresh) { apps = AppCatalog.load(context, true) }
     LaunchedEffect(Unit) {
         while (true) {
             accessibilityEnabled = isCompanionAccessibilityEnabled(context)
@@ -166,11 +133,11 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
     val panel = Color(0xFF1A1A1A)
     val panel2 = Color(0xFF222222)
     val accent = Color(0xFFF5F5F5)
-    val muted = Color(0xFF9EABC3)
+    val muted = Color(0xFFB3B3B3)
 
     Surface(Modifier.fillMaxSize(), color = bg) {
-        Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
                         Text("Your TV, your way.", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
@@ -181,9 +148,9 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
                     }
                 }
 
-                Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(Modifier.fillMaxWidth().heightIn(min = 390.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     Column(
-                        Modifier.weight(1.15f).fillMaxHeight().background(panel, RoundedCornerShape(18.dp)).padding(16.dp),
+                        Modifier.weight(1.15f).heightIn(min = 390.dp).background(panel, RoundedCornerShape(18.dp)).padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text("REMOTE SHORTCUT", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -216,7 +183,7 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
                         Button(
                             enabled = accessibilityEnabled && !recording,
                             onClick = { DrawerSettings.setRecordingTarget(context, "primary"); DrawerSettings.setRecording(context, true); recording = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = accent, disabledContainerColor = panel2)
+                            modifier = Modifier.heightIn(min = 56.dp), colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color(0xFF111111), disabledContainerColor = panel2, disabledContentColor = muted)
                         ) { Text(if (recording) "Press a button on your remote…" else if (accessibilityEnabled) "Record remote button" else "Enable accessibility first") }
                         if (mode == ShortcutMode.COMBINATION) {
                             TextButton(
@@ -229,7 +196,7 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
                     }
 
                     Column(
-                        Modifier.weight(0.85f).fillMaxHeight().background(panel, RoundedCornerShape(18.dp)).padding(16.dp),
+                        Modifier.weight(0.85f).heightIn(min = 390.dp).background(panel, RoundedCornerShape(18.dp)).padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text("HOME EXPERIENCE", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -259,19 +226,6 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
                     }
                 }
 
-                Row(
-                    Modifier.fillMaxWidth().height(112.dp).background(panel, RoundedCornerShape(18.dp)).padding(15.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("APP DRAWER", color = accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        Text("Your apps and appearance are managed directly inside the drawer.", color = Color.White, fontSize = 13.sp)
-                        Text("Open the drawer with your assigned remote shortcut to change position, visibility, favorites and layout.", color = muted, fontSize = 10.sp)
-                    }
-                    Button(onClick = { refresh++ }, colors = ButtonDefaults.buttonColors(containerColor = panel2)) { Text("Refresh apps") }
-                    Text("${apps.size} apps found", color = muted, fontSize = 10.sp)
-                }
             }
         }
     }
