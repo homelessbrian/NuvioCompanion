@@ -11,15 +11,14 @@ import java.io.InputStream
 data class InstalledIconPack(val packageName: String, val label: String)
 
 object IconPackManager {
-    private const val THEME_ACTION = "org.adw.ActivityStarter.THEMES"
+    private val THEME_ACTIONS = listOf("org.adw.ActivityStarter.THEMES", "com.novalauncher.THEME", "com.anddoes.launcher.THEME", "com.teslacoilsw.launcher.THEME")
 
     fun installed(context: Context): List<InstalledIconPack> {
         val pm = context.packageManager
-        val intent = Intent(THEME_ACTION)
-        val matches = if (android.os.Build.VERSION.SDK_INT >= 33) {
-            pm.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(0))
-        } else {
-            @Suppress("DEPRECATION") pm.queryIntentActivities(intent, 0)
+        val matches = THEME_ACTIONS.flatMap { action ->
+            val intent = Intent(action)
+            if (android.os.Build.VERSION.SDK_INT >= 33) pm.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(0))
+            else @Suppress("DEPRECATION") pm.queryIntentActivities(intent, 0)
         }
         return matches.mapNotNull { info ->
             val activity = info.activityInfo ?: return@mapNotNull null
