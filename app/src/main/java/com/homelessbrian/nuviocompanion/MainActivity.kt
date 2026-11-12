@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.ComponentName
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -38,17 +39,43 @@ private val Muted = Color(0xFF9BA9C2)
 private val Accent = Color(0xFF8798FF)
 
 class MainActivity : ComponentActivity() {
+    private val homeRedirectPrefs by lazy { getSharedPreferences("companion_home_state", MODE_PRIVATE) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (isHomeLaunch() && launchSelectedNuvio()) { finish(); return }
+        handleEntry(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleEntry(intent)
+    }
+
+    private fun handleEntry(launchIntent: Intent?) {
+        val fromHome = launchIntent?.categories?.contains(Intent.CATEGORY_HOME) == true
+        if (!fromHome) {
+            // Opening the app icon is always an escape hatch back to settings.
+            homeRedirectPrefs.edit().putBoolean("redirected_once", false).apply()
+            showSettings()
+            return
+        }
+
+        // Redirect to Nuvio only once. The next Home press opens Companion settings
+        // instead of launching Nuvio again and creating an endless Home loop.
+        val alreadyRedirected = homeRedirectPrefs.getBoolean("redirected_once", false)
+        if (!alreadyRedirected && launchSelectedNuvio()) {
+            homeRedirectPrefs.edit().putBoolean("redirected_once", true).apply()
+            finish()
+            return
+        }
+
+        homeRedirectPrefs.edit().putBoolean("redirected_once", false).apply()
         showSettings()
     }
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent); setIntent(intent)
-        if (isHomeLaunch() && launchSelectedNuvio()) finish() else showSettings()
-    }
-    private fun isHomeLaunch() = intent?.categories?.contains(Intent.CATEGORY_HOME) == true
-    private fun launchSelectedNuvio(): Boolean = DrawerSettings.selectedNuvio(this)?.let { AppCatalog.launch(this, it) } ?: false
+
+    private fun launchSelectedNuvio(): Boolean =
+        DrawerSettings.selectedNuvio(this)?.let { AppCatalog.launch(this, it) } ?: false
     private fun showSettings() {
         setContent { MaterialTheme(colorScheme = darkColorScheme(primary = Accent, background = Ink, surface = Panel)) { CompanionSettings(::openAccessibilitySettings, ::requestHomeRole) } }
     }
@@ -100,6 +127,7 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
     var recording by remember { mutableStateOf(DrawerSettings.isRecording(context)) }
     var refresh by remember { mutableIntStateOf(0) }
     var inputStatus by remember { mutableStateOf("Press a remote button here to test whether Android delivers it to Companion.") }
+    var accessibilityEnabled by remember { mutableStateOf(isCompanionAccessibilityEnabled(context)) }
 
     DisposableEffect(Unit) {
         val receiver = object : BroadcastReceiver() {
@@ -118,6 +146,12 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
         onDispose { runCatching { context.unregisterReceiver(receiver) } }
     }
     LaunchedEffect(refresh) { apps = AppCatalog.load(context, true); hidden = DrawerSettings.hidden(context); favorites = DrawerSettings.favorites(context) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            accessibilityEnabled = isCompanionAccessibilityEnabled(context)
+            kotlinx.coroutines.delay(1000)
+        }
+    }
     BackHandler(enabled = recording) { DrawerSettings.setRecording(context, false); recording = false }
 
     Surface(Modifier.fillMaxSize(), color = Ink) {
@@ -141,6 +175,8 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
             }
             item {
                 PanelCard("Remote shortcut & input handling", "Companion uses Android's accessibility key-event filter to take ownership of assigned buttons. Assigned key-down, repeat, and key-up events are consumed so the original action should not also fire when Android delivers them to the service.") {
+                    Text(if (accessibilityEnabled) "SHORTCUT SERVICE · ENABLED" else "SHORTCUT SERVICE · NOT ENABLED", color = if (accessibilityEnabled) Color(0xFF78D6A0) else Color(0xFFFFB36B), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    if (!accessibilityEnabled) Text("The shortcut cannot work until Nuvio Companion's accessibility service is enabled in Android Settings.", color = Color(0xFFFFB36B), fontSize = 13.sp)
                     Text("INPUT TEST", color = Accent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     Text(inputStatus, color = Color.White, fontSize = 13.sp)
                     Text("Try the button you plan to assign. If nothing appears, the device may be intercepting that key before Android exposes it to accessibility services.", color = Muted, fontSize = 12.sp)
@@ -192,6 +228,13 @@ private fun PanelCard(title: String, description: String, content: @Composable C
         Text(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold); Text(description, color = Muted, fontSize = 13.sp); content()
     }
 }
+@Composable
+private fun isCompanionAccessibilityEnabled(context: Context): Boolean {
+    val expected = ComponentName(context, RemoteKeyAccessibilityService::class.java).flattenToString()
+    val enabled = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
+    return enabled.split(':').any { it.equals(expected, ignoreCase = true) }
+}
+
 @Composable
 private fun SelectableRow(label: String, selected: Boolean, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().background(if (selected) Color(0xFF29365A) else Color.Transparent, RoundedCornerShape(10.dp)).clickable(onClick = onClick).focusable().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
