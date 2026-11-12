@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -107,8 +108,8 @@ object DrawerOverlayService {
                 params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             }
             DrawerPosition.BOTTOM -> {
-                params.width = WindowManager.LayoutParams.MATCH_PARENT
-                params.height = (metrics.heightPixels * .36f).toInt()
+                params.width = (metrics.widthPixels * .68f).toInt()
+                params.height = (metrics.heightPixels * .18f).toInt()
                 params.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             }
             DrawerPosition.LEFT -> {
@@ -141,9 +142,9 @@ object DrawerOverlayService {
             val position = DrawerSettings.position(service)
             val (width, height, gravity) = when (position) {
                 DrawerPosition.TOP -> Triple((service.resources.displayMetrics.widthPixels * .68f).toInt(), (service.resources.displayMetrics.heightPixels * .18f).toInt(), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
-                DrawerPosition.BOTTOM -> Triple(WindowManager.LayoutParams.MATCH_PARENT, (service.resources.displayMetrics.heightPixels * .36f).toInt(), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
-                DrawerPosition.LEFT -> Triple((service.resources.displayMetrics.widthPixels * .22f).toInt(), WindowManager.LayoutParams.MATCH_PARENT, Gravity.START or Gravity.CENTER_VERTICAL)
-                DrawerPosition.RIGHT -> Triple((service.resources.displayMetrics.widthPixels * .38f).toInt(), WindowManager.LayoutParams.MATCH_PARENT, Gravity.END or Gravity.CENTER_VERTICAL)
+                DrawerPosition.BOTTOM -> Triple((service.resources.displayMetrics.widthPixels * .68f).toInt(), (service.resources.displayMetrics.heightPixels * .18f).toInt(), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
+                DrawerPosition.LEFT -> Triple((service.resources.displayMetrics.widthPixels * .15f).toInt(), (service.resources.displayMetrics.heightPixels * .88f).toInt(), Gravity.START or Gravity.CENTER_VERTICAL)
+                DrawerPosition.RIGHT -> Triple((service.resources.displayMetrics.widthPixels * .15f).toInt(), (service.resources.displayMetrics.heightPixels * .88f).toInt(), Gravity.END or Gravity.CENTER_VERTICAL)
                 DrawerPosition.CENTER -> Triple((service.resources.displayMetrics.widthPixels * .72f).toInt(), (service.resources.displayMetrics.heightPixels * .68f).toInt(), Gravity.CENTER)
             }
 
@@ -334,7 +335,7 @@ object DrawerOverlayService {
                     Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 18.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("APPS", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                    Text("⠿", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(12.dp))
                     LazyColumn(
                         Modifier.weight(1f).fillMaxWidth().focusGroup(),
@@ -355,7 +356,7 @@ object DrawerOverlayService {
                     verticalArrangement = Arrangement.Center
                 ) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("APPS", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                        Text("⠿", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.weight(1f))
                         DrawerAction("⠿", false) { showingSettings = false }
                         Spacer(Modifier.width(8.dp))
@@ -409,6 +410,7 @@ object DrawerOverlayService {
         Column(
             Modifier.width(62.dp).height(58.dp).graphicsLayer { scaleX = scale; scaleY = scale }
                 .onFocusChanged { focused = it.isFocused }
+                .shadow(if (focused && focusGlow) 22.dp else 5.dp, shape, clip = false)
                 .background(if (focused) Color(0xFF3B2B70) else Color(0xFF1B2639), shape)
                 .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFB58CFF), shape) else Modifier)
                 .clickable(onClick = onClick).padding(vertical = 8.dp, horizontal = 6.dp),
