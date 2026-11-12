@@ -543,6 +543,7 @@ object DrawerOverlayService {
         showNames: Boolean,
         showIcons: Boolean,
         focusGlow: Boolean,
+        focusModifier: Modifier = Modifier,
         onClick: () -> Unit
     ) {
         var focused by remember(app.packageName) { mutableStateOf(false) }
@@ -564,6 +565,7 @@ object DrawerOverlayService {
         showNames: Boolean,
         showIcons: Boolean,
         focusGlow: Boolean,
+        focusModifier: Modifier = Modifier,
         onClick: () -> Unit
     ) {
         var focused by remember(app.packageName) { mutableStateOf(false) }
