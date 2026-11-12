@@ -40,29 +40,6 @@ Checksum for the current APK:
 
 The APK is committed to `main` by the manual workflow; normal commits do not trigger builds. Run **Actions → Build Debug APK → Run workflow** from the `main` branch.
 
-## Persistent debug signing (required for in-place updates)
+## Debug APK signing
 
-The debug APK workflow requires a persistent Android signing key stored as GitHub Actions repository secrets. Never commit the keystore or its passwords to this repository.
-
-Create a keystore on a trusted computer with Java's `keytool` (choose and securely save your own passwords and alias):
-
-```bash
-keytool -genkeypair -v -keystore nuviocompanion-debug.jks -alias nuviocompanion -keyalg RSA -keysize 2048 -validity 10000
-```
-
-Convert the keystore to one-line Base64 text. On Windows PowerShell:
-
-```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes(".\\nuviocompanion-debug.jks")) | Set-Clipboard
-```
-
-In **Settings → Secrets and variables → Actions → New repository secret**, add:
-
-- `COMPANION_SIGNING_KEYSTORE_BASE64`: the Base64 text copied above
-- `COMPANION_SIGNING_STORE_PASSWORD`: the keystore password
-- `COMPANION_SIGNING_KEY_ALIAS`: `nuviocompanion` (or the alias you chose)
-- `COMPANION_SIGNING_KEY_PASSWORD`: the key password
-
-Keep a secure backup of the keystore and passwords. Losing them means future APKs cannot update installations signed with that key. The debug workflow intentionally fails until all four secrets are configured.
-
-The debug APK has application ID `com.homelessbrian.nuviocompanion.debug`; it updates the debug-flavor installation, not a release-flavor installation. Its version code increments with each Actions run.
+The debug workflow uses Android's standard debug signing automatically; no repository secrets or signing variables are needed for these test builds. GitHub-hosted runners generate their own debug key, so APKs from separate runs may not share the same signing identity. If Android refuses an in-place update, uninstall the previous debug build and install the newly downloaded APK. We can set up a persistent debug key later if you want seamless in-place updates.
