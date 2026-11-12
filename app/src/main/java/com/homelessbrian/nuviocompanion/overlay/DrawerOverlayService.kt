@@ -47,6 +47,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
@@ -547,7 +548,13 @@ object DrawerOverlayService {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (showIcons) Image(app.icon.toBitmapPreservingAspect(256).asImageBitmap(), app.label, Modifier.size(88.dp), contentScale = ContentScale.Fit)
+            if (showIcons) {
+                if (app.isTvBanner) {
+                    Image(app.icon.toBitmapPreservingAspect(512).asImageBitmap(), app.label, Modifier.width(96.dp).height(54.dp).clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
+                } else {
+                    Image(app.icon.toBitmapPreservingAspect(256).asImageBitmap(), app.label, Modifier.size(76.dp), contentScale = ContentScale.Fit)
+                }
+            }
             if (showNames) Text(app.label, color = Color.White, fontSize = 9.sp, maxLines = 1, modifier = Modifier.padding(top = 4.dp))
         }
     }
@@ -569,7 +576,13 @@ object DrawerOverlayService {
                 .clickable(onClick = onClick).focusable().padding(vertical = 4.dp, horizontal = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (showIcons) Image(app.icon.toBitmapPreservingAspect(224).asImageBitmap(), app.label, Modifier.size(68.dp), contentScale = ContentScale.Fit)
+            if (showIcons) {
+                if (app.isTvBanner) {
+                    Image(app.icon.toBitmapPreservingAspect(384).asImageBitmap(), app.label, Modifier.width(76.dp).height(43.dp).clip(RoundedCornerShape(9.dp)), contentScale = ContentScale.Crop)
+                } else {
+                    Image(app.icon.toBitmapPreservingAspect(224).asImageBitmap(), app.label, Modifier.size(58.dp), contentScale = ContentScale.Fit)
+                }
+            }
             if (showNames) Text(app.label, color = Color.White, fontSize = 9.sp, maxLines = 1)
         }
     }
@@ -594,7 +607,13 @@ object DrawerOverlayService {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (showIcons) Image(app.icon.toBitmapPreservingAspect(256).asImageBitmap(), app.label, Modifier.size(92.dp), contentScale = ContentScale.Fit)
+            if (showIcons) {
+                if (app.isTvBanner) {
+                    Image(app.icon.toBitmapPreservingAspect(512).asImageBitmap(), app.label, Modifier.width(116.dp).height(65.dp).clip(RoundedCornerShape(11.dp)), contentScale = ContentScale.Crop)
+                } else {
+                    Image(app.icon.toBitmapPreservingAspect(256).asImageBitmap(), app.label, Modifier.size(82.dp), contentScale = ContentScale.Fit)
+                }
+            }
             if (showNames) Text(app.label, color = Color.White, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(top = 7.dp))
         }
     }
