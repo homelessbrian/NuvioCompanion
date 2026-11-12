@@ -26,6 +26,8 @@ object DrawerSettings {
     fun setFavorites(context: Context, value: Set<String>) { prefs(context).edit().putStringSet("favorite_packages", value.toSet()).apply() }
     fun order(context: Context) = prefs(context).getString("app_order", "")?.split("|")?.filter(String::isNotBlank) ?: emptyList()
     fun setOrder(context: Context, value: List<String>) { prefs(context).edit().putString("app_order", value.joinToString("|")).apply() }
+    fun iconPack(context: Context) = prefs(context).getString("icon_pack", null)
+    fun setIconPack(context: Context, value: String?) { prefs(context).edit().putString("icon_pack", value).apply() }
     fun selectedNuvio(context: Context) = prefs(context).getString("selected_nuvio", null)
     fun setSelectedNuvio(context: Context, value: String?) { prefs(context).edit().putString("selected_nuvio", value).apply() }
     fun showNames(context: Context) = prefs(context).getBoolean("drawer_show_names", false)
