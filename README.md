@@ -26,7 +26,7 @@ The current build is an implementation milestone, not a claim of device-wide com
 
 ## Build
 
-The project uses Gradle, Android Gradle Plugin, Kotlin, and Jetpack Compose. CI builds the debug APK and runs unit tests.
+The project uses Gradle, Android Gradle Plugin, Kotlin, and Jetpack Compose. Builds are manual only: commits and pull requests do not start GitHub Actions builds. Use **Actions → Build and Test → Run workflow** for a compile/test run, or **Actions → Build Debug APK → Run workflow** to publish a test APK from the selected branch. The workflow dispatch ref is the source revision that gets built.
 
 ## Release signing
 
