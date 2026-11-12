@@ -5,8 +5,8 @@ import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.IBinder
 import android.view.Gravity
-import android.view.KeyEvent
 import android.view.WindowManager
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
@@ -61,8 +61,8 @@ class DrawerOverlayService : Service() {
     private fun close() { view?.let { runCatching { wm.removeView(it) } }; view = null; visible = false; stopSelf() }
     override fun onDestroy() { if (visible) close(); super.onDestroy() }
     override fun onBind(intent: Intent?): IBinder? = null
-    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean { if (keyCode == KeyEvent.KEYCODE_BACK) { close(); return true }; return super.onStartCommand(null, 0, 0) == START_STICKY }
     @Composable private fun DrawerContent(horizontal: Boolean) {
+        BackHandler { close() }
         val apps = remember { AppCatalog.load(this) }
         Surface(Modifier.fillMaxSize().padding(8.dp), shape = RoundedCornerShape(20.dp), color = Color(0xF21A1D24)) {
             Column(Modifier.fillMaxSize().padding(16.dp)) {
