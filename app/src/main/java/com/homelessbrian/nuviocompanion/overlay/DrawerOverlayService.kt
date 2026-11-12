@@ -124,12 +124,12 @@ object DrawerOverlayService {
         when (position) {
             DrawerPosition.TOP -> {
                 params.width = (metrics.widthPixels * .68f).toInt()
-                params.height = (metrics.heightPixels * .25f).toInt()
+                params.height = (metrics.heightPixels * .32f).toInt()
                 params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             }
             DrawerPosition.BOTTOM -> {
                 params.width = (metrics.widthPixels * .68f).toInt()
-                params.height = (metrics.heightPixels * .25f).toInt()
+                params.height = (metrics.heightPixels * .32f).toInt()
                 params.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             }
             DrawerPosition.LEFT -> {
@@ -161,8 +161,8 @@ object DrawerOverlayService {
             wm = service.getSystemService(Context.WINDOW_SERVICE) as WindowManager
             val position = DrawerSettings.position(service)
             val (width, height, gravity) = when (position) {
-                DrawerPosition.TOP -> Triple((service.resources.displayMetrics.widthPixels * .68f).toInt(), (service.resources.displayMetrics.heightPixels * .25f).toInt(), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
-                DrawerPosition.BOTTOM -> Triple((service.resources.displayMetrics.widthPixels * .68f).toInt(), (service.resources.displayMetrics.heightPixels * .25f).toInt(), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
+                DrawerPosition.TOP -> Triple((service.resources.displayMetrics.widthPixels * .68f).toInt(), (service.resources.displayMetrics.heightPixels * .32f).toInt(), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+                DrawerPosition.BOTTOM -> Triple((service.resources.displayMetrics.widthPixels * .68f).toInt(), (service.resources.displayMetrics.heightPixels * .32f).toInt(), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
                 DrawerPosition.LEFT -> Triple((service.resources.displayMetrics.widthPixels * .13f).toInt(), (service.resources.displayMetrics.heightPixels * .82f).toInt(), Gravity.START or Gravity.CENTER_VERTICAL)
                 DrawerPosition.RIGHT -> Triple((service.resources.displayMetrics.widthPixels * .13f).toInt(), (service.resources.displayMetrics.heightPixels * .82f).toInt(), Gravity.END or Gravity.CENTER_VERTICAL)
                 DrawerPosition.CENTER -> Triple((service.resources.displayMetrics.widthPixels * .72f).toInt(), (service.resources.displayMetrics.heightPixels * .68f).toInt(), Gravity.CENTER)
