@@ -102,8 +102,8 @@ object DrawerOverlayService {
         val params = (view.layoutParams as? WindowManager.LayoutParams) ?: return
         when (position) {
             DrawerPosition.TOP -> {
-                params.width = WindowManager.LayoutParams.MATCH_PARENT
-                params.height = (metrics.heightPixels * .36f).toInt()
+                params.width = (metrics.widthPixels * .68f).toInt()
+                params.height = (metrics.heightPixels * .18f).toInt()
                 params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             }
             DrawerPosition.BOTTOM -> {
@@ -112,18 +112,18 @@ object DrawerOverlayService {
                 params.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             }
             DrawerPosition.LEFT -> {
-                params.width = (metrics.widthPixels * .22f).toInt()
-                params.height = WindowManager.LayoutParams.MATCH_PARENT
+                params.width = (metrics.widthPixels * .15f).toInt()
+                params.height = (metrics.heightPixels * .88f).toInt()
                 params.gravity = Gravity.START or Gravity.CENTER_VERTICAL
             }
             DrawerPosition.RIGHT -> {
-                params.width = (metrics.widthPixels * .38f).toInt()
-                params.height = WindowManager.LayoutParams.MATCH_PARENT
+                params.width = (metrics.widthPixels * .15f).toInt()
+                params.height = (metrics.heightPixels * .88f).toInt()
                 params.gravity = Gravity.END or Gravity.CENTER_VERTICAL
             }
             DrawerPosition.CENTER -> {
-                params.width = (metrics.widthPixels * .84f).toInt()
-                params.height = (metrics.heightPixels * .78f).toInt()
+                params.width = (metrics.widthPixels * .72f).toInt()
+                params.height = (metrics.heightPixels * .68f).toInt()
                 params.gravity = Gravity.CENTER
             }
         }
@@ -140,11 +140,11 @@ object DrawerOverlayService {
             wm = service.getSystemService(Context.WINDOW_SERVICE) as WindowManager
             val position = DrawerSettings.position(service)
             val (width, height, gravity) = when (position) {
-                DrawerPosition.TOP -> Triple(WindowManager.LayoutParams.MATCH_PARENT, (service.resources.displayMetrics.heightPixels * .36f).toInt(), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+                DrawerPosition.TOP -> Triple((service.resources.displayMetrics.widthPixels * .68f).toInt(), (service.resources.displayMetrics.heightPixels * .18f).toInt(), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
                 DrawerPosition.BOTTOM -> Triple(WindowManager.LayoutParams.MATCH_PARENT, (service.resources.displayMetrics.heightPixels * .36f).toInt(), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
                 DrawerPosition.LEFT -> Triple((service.resources.displayMetrics.widthPixels * .22f).toInt(), WindowManager.LayoutParams.MATCH_PARENT, Gravity.START or Gravity.CENTER_VERTICAL)
                 DrawerPosition.RIGHT -> Triple((service.resources.displayMetrics.widthPixels * .38f).toInt(), WindowManager.LayoutParams.MATCH_PARENT, Gravity.END or Gravity.CENTER_VERTICAL)
-                DrawerPosition.CENTER -> Triple((service.resources.displayMetrics.widthPixels * .84f).toInt(), (service.resources.displayMetrics.heightPixels * .78f).toInt(), Gravity.CENTER)
+                DrawerPosition.CENTER -> Triple((service.resources.displayMetrics.widthPixels * .72f).toInt(), (service.resources.displayMetrics.heightPixels * .68f).toInt(), Gravity.CENTER)
             }
 
             lifecycleOwner = OverlayLifecycleOwner().also { it.attach() }
@@ -179,7 +179,7 @@ object DrawerOverlayService {
                 PixelFormat.TRANSLUCENT
             ).apply {
                 this.gravity = gravity
-                dimAmount = .22f
+                dimAmount = .34f
             }
 
             lifecycleOwner!!.start()
@@ -217,7 +217,7 @@ object DrawerOverlayService {
         val visibleApps = allApps.filter { it.packageName !in hidden }
             .sortedWith(compareByDescending<com.homelessbrian.nuviocompanion.InstalledApp> { it.packageName in favorites }
                 .thenBy { it.label.lowercase() })
-        val panel = Color(0xFF101626).copy(alpha = opacity)
+        val panel = Color(0xFF111827).copy(alpha = opacity)
         val tile = Color(0xFF202B40)
         val accent = Color(0xFFAA8CFF)
 
@@ -227,8 +227,8 @@ object DrawerOverlayService {
                     val back = event.key == Key.Back || event.key == Key.Escape
                     if (back && event.type == KeyEventType.KeyUp) { onClose(); true } else back
                 }
-                .padding(8.dp),
-            shape = RoundedCornerShape(26.dp),
+                .padding(3.dp),
+            shape = RoundedCornerShape(24.dp),
             color = panel
         ) {
             if (showingSettings) {
@@ -318,7 +318,7 @@ object DrawerOverlayService {
                     }
                     Spacer(Modifier.height(18.dp))
                     LazyVerticalGrid(
-                        columns = GridCells.Adaptive(minSize = 116.dp),
+                        columns = GridCells.Fixed(5),
                         modifier = Modifier.fillMaxSize().focusGroup(),
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -357,7 +357,7 @@ object DrawerOverlayService {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text("APPS", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                         Spacer(Modifier.weight(1f))
-                        DrawerAction("▦", false) { showingSettings = false }
+                        DrawerAction("⠿", false) { showingSettings = false }
                         Spacer(Modifier.width(8.dp))
                         DrawerAction("⚙", false) { showingSettings = true }
                         Spacer(Modifier.width(8.dp))
@@ -407,7 +407,7 @@ object DrawerOverlayService {
         val scale = if (focused) 1.07f else 1f
         val shape = RoundedCornerShape(17.dp)
         Column(
-            Modifier.width(76.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+            Modifier.width(62.dp).height(58.dp).graphicsLayer { scaleX = scale; scaleY = scale }
                 .onFocusChanged { focused = it.isFocused }
                 .background(if (focused) Color(0xFF3B2B70) else Color(0xFF1B2639), shape)
                 .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFB58CFF), shape) else Modifier)
@@ -431,7 +431,7 @@ object DrawerOverlayService {
         var focused by remember(app.packageName) { mutableStateOf(false) }
         val shape = RoundedCornerShape(15.dp)
         Column(
-            Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }
+            Modifier.width(62.dp).height(58.dp).onFocusChanged { focused = it.isFocused }
                 .background(if (focused) Color(0xFF3B2B70) else Color(0xFF1B2639), shape)
                 .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFB58CFF), shape) else Modifier)
                 .clickable(onClick = onClick).padding(vertical = 8.dp, horizontal = 5.dp),
@@ -454,7 +454,7 @@ object DrawerOverlayService {
         val scale = if (focused) 1.06f else 1f
         val shape = RoundedCornerShape(17.dp)
         Column(
-            Modifier.fillMaxWidth().height(116.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+            Modifier.fillMaxWidth().height(96.dp).graphicsLayer { scaleX = scale; scaleY = scale }
                 .onFocusChanged { focused = it.isFocused }
                 .background(if (focused) Color(0xFF3A2B70) else Color(0xFF1B2639), shape)
                 .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFB58CFF), shape) else Modifier)
@@ -462,7 +462,7 @@ object DrawerOverlayService {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(54.dp))
+            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(50.dp))
             if (showNames) Text(app.label, color = Color.White, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(top = 7.dp))
         }
     }
