@@ -41,6 +41,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -212,122 +213,170 @@ object DrawerOverlayService {
         var hidden by remember { mutableStateOf(DrawerSettings.hidden(context)) }
         var favorites by remember { mutableStateOf(DrawerSettings.favorites(context)) }
         var position by remember { mutableStateOf(DrawerSettings.position(context)) }
+        var showNames by remember { mutableStateOf(DrawerSettings.showNames(context)) }
+        var showIcons by remember { mutableStateOf(DrawerSettings.showIcons(context)) }
+        var focusGlow by remember { mutableStateOf(DrawerSettings.focusGlow(context)) }
+        var opacity by remember { mutableStateOf(DrawerSettings.opacity(context)) }
         val isSide = position == DrawerPosition.LEFT || position == DrawerPosition.RIGHT
         val isCenter = position == DrawerPosition.CENTER
         val visibleApps = allApps.filter { it.packageName !in hidden }
-            .sortedByDescending { it.packageName in favorites }
-        val bg = Color(0xF20C1220)
-        val tile = Color(0xFF182338)
-        val accent = Color(0xFF9B8CFF)
+            .sortedWith(compareByDescending<com.homelessbrian.nuviocompanion.InstalledApp> { it.packageName in favorites }
+                .thenBy { it.label.lowercase() })
+        val panel = Color(0xFF101626).copy(alpha = opacity)
+        val tile = Color(0xFF202B40)
+        val accent = Color(0xFFAA8CFF)
 
         Surface(
             Modifier.fillMaxSize()
                 .onPreviewKeyEvent { event ->
-                    val isBack = event.key == Key.Back || event.key == Key.Escape
-                    if (isBack && event.type == KeyEventType.KeyUp) {
-                        onClose()
-                        true
-                    } else {
-                        isBack
-                    }
+                    val back = event.key == Key.Back || event.key == Key.Escape
+                    if (back && event.type == KeyEventType.KeyUp) { onClose(); true } else back
                 }
                 .padding(8.dp),
-            shape = RoundedCornerShape(22.dp),
-            color = bg
+            shape = RoundedCornerShape(26.dp),
+            color = panel
         ) {
-            Column(Modifier.fillMaxSize().padding(if (isSide) 14.dp else 18.dp)) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text(if (showingSettings) "DRAWER SETTINGS" else "YOUR APPS", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                        Text(
-                            if (showingSettings) "Customize this drawer without leaving your app" else "${visibleApps.size} apps · Select an app to open",
-                            color = Color(0xFF9EABC3),
-                            fontSize = 11.sp
-                        )
+            if (showingSettings) {
+                Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("APP DRAWER SETTINGS", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                            Text("Make the drawer feel right on your screen", color = Color(0xFF9DAAC2), fontSize = 12.sp)
+                        }
+                        DrawerAction("DONE", true) { showingSettings = false }
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        DrawerAction("Apps", !showingSettings) { showingSettings = false }
-                        DrawerAction("Settings", showingSettings) { showingSettings = true }
-                        DrawerAction("×", false, onClose)
+                    Text("POSITION", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        DrawerPosition.entries.forEach { option ->
+                            DrawerAction(option.name, position == option, Modifier.weight(1f)) {
+                                position = option
+                                DrawerSettings.setPosition(context, option)
+                                updatePosition(context, option)
+                            }
+                        }
+                    }
+                    Text("APPEARANCE", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        DrawerAction(if (showNames) "✓  APP NAMES" else "APP NAMES", showNames) {
+                            showNames = !showNames; DrawerSettings.setShowNames(context, showNames)
+                        }
+                        DrawerAction(if (showIcons) "✓  APP ICONS" else "APP ICONS", showIcons) {
+                            showIcons = !showIcons; DrawerSettings.setShowIcons(context, showIcons)
+                        }
+                        DrawerAction(if (focusGlow) "✓  FOCUS GLOW" else "FOCUS GLOW", focusGlow) {
+                            focusGlow = !focusGlow; DrawerSettings.setFocusGlow(context, focusGlow)
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("PANEL OPACITY", color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                        listOf(0.72f, 0.84f, 0.94f).forEachIndexed { index, value ->
+                            DrawerAction(listOf("70%", "85%", "95%")[index], opacity == value) {
+                                opacity = value; DrawerSettings.setOpacity(context, value)
+                            }
+                        }
+                    }
+                    DividerLine()
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("MANAGE APPS", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text("Choose what appears and pin favorites to the front", color = Color(0xFF9DAAC2), fontSize = 11.sp)
+                        }
+                        Text("${visibleApps.size} visible / ${allApps.size} installed", color = accent, fontSize = 11.sp)
+                    }
+                    LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        columnItems(allApps, key = { it.packageName }) { app ->
+                            Row(
+                                Modifier.fillMaxWidth().background(tile, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Image(app.icon.toBitmap(80, 80).asImageBitmap(), app.label, Modifier.size(34.dp))
+                                Spacer(Modifier.width(12.dp))
+                                Text(app.label, color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f), maxLines = 1)
+                                DrawerAction(if (app.packageName in favorites) "★" else "☆", app.packageName in favorites) {
+                                    favorites = if (app.packageName in favorites) favorites - app.packageName else favorites + app.packageName
+                                    DrawerSettings.setFavorites(context, favorites)
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Switch(
+                                    checked = app.packageName !in hidden,
+                                    onCheckedChange = { visible ->
+                                        hidden = if (visible) hidden - app.packageName else hidden + app.packageName
+                                        DrawerSettings.setHidden(context, hidden)
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
-                Spacer(Modifier.height(12.dp))
-
-                if (showingSettings) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("POSITION", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                            DrawerPosition.entries.forEach { option ->
-                                DrawerAction(option.name.lowercase().replaceFirstChar { it.uppercase() }, position == option) {
-                                    position = option
-                                    DrawerSettings.setPosition(context, option)
-                                    updatePosition(context, option)
-                                }
-                            }
+            } else if (isCenter) {
+                Column(Modifier.fillMaxSize().padding(22.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("▦", color = accent, fontSize = 22.sp)
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Apps", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                            Text("${visibleApps.size} apps installed", color = Color(0xFF9DAAC2), fontSize = 11.sp)
                         }
-                        Text("VISIBLE APPS", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            columnItems(allApps, key = { it.packageName }) { app ->
-                                Row(
-                                    Modifier.fillMaxWidth().background(tile, RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Image(app.icon.toBitmap(72, 72).asImageBitmap(), app.label, Modifier.size(30.dp))
-                                    Spacer(Modifier.width(10.dp))
-                                    Text(app.label, color = Color.White, modifier = Modifier.weight(1f), maxLines = 1, fontSize = 12.sp)
-                                    Text(
-                                        if (app.packageName in favorites) "★" else "☆",
-                                        color = accent,
-                                        modifier = Modifier.clickable {
-                                            favorites = if (app.packageName in favorites) favorites - app.packageName else favorites + app.packageName
-                                            DrawerSettings.setFavorites(context, favorites)
-                                        }.padding(8.dp)
-                                    )
-                                    Switch(
-                                        checked = app.packageName !in hidden,
-                                        onCheckedChange = { show ->
-                                            hidden = if (show) hidden - app.packageName else hidden + app.packageName
-                                            DrawerSettings.setHidden(context, hidden)
-                                        }
-                                    )
-                                }
-                            }
+                        DrawerAction("⚙  SETTINGS", false) { showingSettings = true }
+                        Spacer(Modifier.width(8.dp))
+                        DrawerAction("×", false, onClose)
+                    }
+                    Spacer(Modifier.height(18.dp))
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 116.dp),
+                        modifier = Modifier.fillMaxSize().focusGroup(),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                        contentPadding = PaddingValues(6.dp)
+                    ) {
+                        items(visibleApps, key = { it.packageName }) { app ->
+                            CenterAppTile(app, showNames, showIcons, focusGlow) { onLaunch(app.packageName) }
                         }
                     }
-                } else {
-                    if (isSide) {
-                        LazyColumn(
-                            Modifier.weight(1f).fillMaxWidth().focusGroup(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            columnItems(visibleApps, key = { it.packageName }) { app ->
-                                DrawerAppTile(app, tile, accent, compact = true) { onLaunch(app.packageName) }
-                            }
+                }
+            } else if (isSide) {
+                Column(
+                    Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 18.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("APPS", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                    Spacer(Modifier.height(12.dp))
+                    LazyColumn(
+                        Modifier.weight(1f).fillMaxWidth().focusGroup(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(vertical = 4.dp)
+                    ) {
+                        columnItems(visibleApps, key = { it.packageName }) { app ->
+                            SideAppTile(app, showNames, showIcons, focusGlow) { onLaunch(app.packageName) }
                         }
-                    } else if (isCenter) {
-                        LazyVerticalGrid(
-                            columns = GridCells.Adaptive(minSize = 190.dp),
-                            modifier = Modifier.weight(1f).fillMaxWidth().focusGroup(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            items(visibleApps, key = { it.packageName }) { app ->
-                                DrawerAppTile(app, tile, accent, compact = false) { onLaunch(app.packageName) }
-                            }
-                        }
-                    } else {
-                        LazyRow(
-                            Modifier.weight(1f).fillMaxWidth().focusGroup(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            rowItems(visibleApps, key = { it.packageName }) { app ->
-                                DrawerAppTile(app, tile, accent, compact = false) { onLaunch(app.packageName) }
-                            }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    DrawerAction("⚙", false) { showingSettings = true }
+                }
+            } else {
+                Column(
+                    Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 13.dp),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("APPS", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                        Spacer(Modifier.weight(1f))
+                        DrawerAction("▦", false) { showingSettings = false }
+                        Spacer(Modifier.width(8.dp))
+                        DrawerAction("⚙", false) { showingSettings = true }
+                        Spacer(Modifier.width(8.dp))
+                        DrawerAction("×", false, onClose)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    LazyRow(
+                        Modifier.fillMaxWidth().focusGroup(),
+                        horizontalArrangement = Arrangement.spacedBy(13.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        contentPadding = PaddingValues(vertical = 9.dp, horizontal = 4.dp)
+                    ) {
+                        rowItems(visibleApps, key = { it.packageName }) { app ->
+                            DockAppTile(app, showNames, showIcons, focusGlow) { onLaunch(app.packageName) }
                         }
                     }
                 }
@@ -336,57 +385,96 @@ object DrawerOverlayService {
     }
 
     @Composable
-    private fun DrawerAction(label: String, selected: Boolean, onClick: () -> Unit) {
+    private fun DrawerAction(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+        val shape = RoundedCornerShape(12.dp)
         Text(
             label,
-            color = if (selected) Color.White else Color(0xFFB7C2D8),
+            color = if (selected) Color.White else Color(0xFFD0D7E6),
             fontSize = 11.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            modifier = Modifier
-                .background(if (selected) Color(0xFF5545A8) else Color(0xFF202B40), RoundedCornerShape(10.dp))
+            modifier = modifier
+                .background(if (selected) Color(0xFF5941A5) else Color(0xFF263247), shape)
+                .then(if (selected) Modifier.border(1.dp, Color(0xFFB69BFF), shape) else Modifier)
                 .clickable(onClick = onClick)
-                .focusable()
-                .padding(horizontal = 11.dp, vertical = 9.dp)
+                .padding(horizontal = 13.dp, vertical = 10.dp)
         )
     }
 
     @Composable
-    private fun DrawerAppTile(
+    private fun DockAppTile(
         app: com.homelessbrian.nuviocompanion.InstalledApp,
-        tileColor: Color,
-        accent: Color,
-        compact: Boolean,
+        showNames: Boolean,
+        showIcons: Boolean,
+        focusGlow: Boolean,
         onClick: () -> Unit
     ) {
         var focused by remember(app.packageName) { mutableStateOf(false) }
-        val cardShape = RoundedCornerShape(18.dp)
-        Row(
-            Modifier
-                .then(if (compact) Modifier.fillMaxWidth() else Modifier.width(190.dp))
-                .height(84.dp)
+        val scale by androidx.compose.animation.core.animateFloatAsState(if (focused) 1.07f else 1f, label = "dockFocus")
+        val shape = RoundedCornerShape(17.dp)
+        Column(
+            Modifier.width(76.dp).graphicsLayer { scaleX = scale; scaleY = scale }
                 .onFocusChanged { focused = it.isFocused }
-                .background(if (focused) Color(0xFF34305C) else tileColor, cardShape)
-                .then(if (focused) Modifier.border(2.dp, accent, cardShape) else Modifier)
-                .clickable(onClick = onClick)
-                .focusable()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .background(if (focused) Color(0xFF3B2B70) else Color(0xFF1B2639), shape)
+                .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFB58CFF), shape) else Modifier)
+                .clickable(onClick = onClick).padding(vertical = 8.dp, horizontal = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Box(
-                Modifier.size(58.dp)
-                    .background(if (focused) Color(0xFF51449B) else Color(0xFF263650), RoundedCornerShape(15.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(42.dp))
-            }
-            Spacer(Modifier.width(13.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-                Text(app.label, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                Spacer(Modifier.height(4.dp))
-                Text("OPEN APP", color = if (focused) Color(0xFFD7D0FF) else Color(0xFF91A1BD), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-            }
-            Text("›", color = if (focused) Color.White else Color(0xFF7385A3), fontSize = 25.sp, fontWeight = FontWeight.Light)
+            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(43.dp))
+            if (showNames) Text(app.label, color = Color.White, fontSize = 9.sp, maxLines = 1, modifier = Modifier.padding(top = 4.dp))
         }
+    }
+
+    @Composable
+    private fun SideAppTile(
+        app: com.homelessbrian.nuviocompanion.InstalledApp,
+        showNames: Boolean,
+        showIcons: Boolean,
+        focusGlow: Boolean,
+        onClick: () -> Unit
+    ) {
+        var focused by remember(app.packageName) { mutableStateOf(false) }
+        val shape = RoundedCornerShape(15.dp)
+        Column(
+            Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }
+                .background(if (focused) Color(0xFF3B2B70) else Color(0xFF1B2639), shape)
+                .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFB58CFF), shape) else Modifier)
+                .clickable(onClick = onClick).padding(vertical = 8.dp, horizontal = 5.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            if (showIcons) Image(app.icon.toBitmap(112, 112).asImageBitmap(), app.label, Modifier.size(42.dp))
+            if (showNames) Text(app.label, color = Color.White, fontSize = 9.sp, maxLines = 1)
+        }
+    }
+
+    @Composable
+    private fun CenterAppTile(
+        app: com.homelessbrian.nuviocompanion.InstalledApp,
+        showNames: Boolean,
+        showIcons: Boolean,
+        focusGlow: Boolean,
+        onClick: () -> Unit
+    ) {
+        var focused by remember(app.packageName) { mutableStateOf(false) }
+        val scale by androidx.compose.animation.core.animateFloatAsState(if (focused) 1.06f else 1f, label = "gridFocus")
+        val shape = RoundedCornerShape(17.dp)
+        Column(
+            Modifier.fillMaxWidth().height(116.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+                .onFocusChanged { focused = it.isFocused }
+                .background(if (focused) Color(0xFF3A2B70) else Color(0xFF1B2639), shape)
+                .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFB58CFF), shape) else Modifier)
+                .clickable(onClick = onClick).padding(9.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(54.dp))
+            if (showNames) Text(app.label, color = Color.White, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(top = 7.dp))
+        }
+    }
+
+    @Composable
+    private fun DividerLine() {
+        Spacer(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF344158)))
     }
 
     private class OverlayLifecycleOwner : LifecycleOwner, SavedStateRegistryOwner, ViewModelStoreOwner {
