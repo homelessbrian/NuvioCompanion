@@ -27,6 +27,10 @@ class RemoteKeyAccessibilityService : AccessibilityService() {
     override fun onInterrupt() { resetGesture() }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
+        // Handle dismissal before shortcut matching so Back cannot be swallowed by a
+        // configured shortcut or left for the overlay's focused child to ignore.
+        if (DrawerOverlayService.handleBackKey(event)) return true
+
         publishInputEvent(event, isMappedKey(event.keyCode))
         if (DrawerSettings.isRecording(this)) {
             if (event.action == KeyEvent.ACTION_DOWN) {
