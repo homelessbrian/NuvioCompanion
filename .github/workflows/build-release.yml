@@ -1,10 +1,10 @@
-name: Build Release Variant
+name: Build Release Variant (Prototype)
 
 on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: "Type BUILD to confirm this manual APK build"
+        description: "Type BUILD to confirm this prototype release-variant build"
         required: true
         type: string
 
@@ -22,8 +22,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          persist-credentials: true
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -36,33 +34,23 @@ jobs:
         with:
           gradle-version: "8.13"
 
-      - name: Build release variant
+      - name: Build prototype release variant
         run: gradle :app:assembleRelease --parallel --build-cache --no-daemon
 
-      - name: Publish APK at permanent download path
+      - name: Prepare versioned APK
         run: |
           set -euo pipefail
+          mkdir -p out
           apk="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
           test -n "$apk"
-          mkdir -p downloads
-          install -m 0644 "$apk" downloads/NuvioCompanion.apk
-          sha256sum downloads/NuvioCompanion.apk > downloads/NuvioCompanion.apk.sha256
-          git config user.name "homelessbrian"
-          git config user.email "38150792+homelessbrian@users.noreply.github.com"
-          git add downloads/NuvioCompanion.apk downloads/NuvioCompanion.apk.sha256
-          if git diff --cached --quiet; then
-            echo "The APK is identical to the currently published file."
-            exit 0
-          fi
-          git commit -m "Publish latest NuvioCompanion APK"
-          git push origin HEAD:main
+          cp "$apk" "out/Nuvio-Companion-Prototype-Release-${GITHUB_RUN_NUMBER}.apk"
 
-      - name: Publish versioned GitHub Release copy
+      - name: Publish versioned GitHub Release asset
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: companion-build-${{ github.run_number }}
-          name: NuvioCompanion build #${{ github.run_number }}
-          body: Manually dispatched build. The stable downloader URL is https://raw.githubusercontent.com/homelessbrian/NuvioCompanion/main/downloads/NuvioCompanion.apk
+          tag_name: release-prototype-${{ github.run_number }}
+          name: Prototype Release Build #${{ github.run_number }}
+          body: Prototype release-variant build. The stable downloader URL is reserved for the manually signed debug APK.
           target_commitish: ${{ github.sha }}
           prerelease: true
-          files: downloads/NuvioCompanion.apk
+          files: out/*.apk
