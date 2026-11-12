@@ -236,7 +236,8 @@ object DrawerOverlayService {
         val iconPacks = remember { IconPackManager.installed(context) }
         var selectedIconPack by remember { mutableStateOf(DrawerSettings.iconPack(context)) }
         var editingIconFor by remember { mutableStateOf<String?>(null) }
-        val iconPackEntries = remember(selectedIconPack) { IconPackManager.entries(context, selectedIconPack) }
+        val iconPackCatalog = remember(selectedIconPack) { IconPackManager.catalog(context, selectedIconPack) }
+        val iconPackEntries = iconPackCatalog.entries
         var showingSettings by remember { mutableStateOf(false) }
         val settingsFocusRequester = remember { FocusRequester() }
         val drawerFocusRequester = remember { FocusRequester() }
@@ -390,7 +391,11 @@ object DrawerOverlayService {
                             if (selectedIconPack.isNullOrBlank()) {
                                 Text("Select an icon pack above before choosing individual icons.", color = Color(0xFFB3B3B3), fontSize = 12.sp)
                             } else if (iconPackEntries.isEmpty()) {
-                                Text("No browsable icons were found in this pack. The pack needs a drawable.xml catalogue and matching drawable resources.", color = Color(0xFFB3B3B3), fontSize = 12.sp)
+                                Text(
+                                    iconPackCatalog.error ?: "No selectable icons were found in this pack.",
+                                    color = Color(0xFFB3B3B3),
+                                    fontSize = 12.sp
+                                )
                             } else {
                                 Text("${iconPackEntries.size} icons available · Select any icon", color = Color(0xFFB3B3B3), fontSize = 11.sp)
                             }
