@@ -237,12 +237,12 @@ object DrawerOverlayService {
         val visibleApps = allApps.filter { it.packageName !in hidden }
             .sortedWith(compareByDescending<com.homelessbrian.nuviocompanion.InstalledApp> { it.packageName in favorites }
                 .thenBy { it.label.lowercase() })
-        val panel = Color(0xFF111827).copy(alpha = opacity)
+        val panel = Color(0xFF1A1A1A).copy(alpha = opacity)
         LaunchedEffect(showingSettings, position) {
             if (showingSettings) updateSettingsWindow(context) else updatePosition(context, position)
         }
-        val tile = Color(0xFF202B40)
-        val accent = Color(0xFFAA8CFF)
+        val tile = Color(0xFF222222)
+        val accent = Color(0xFFF5F5F5)
 
         Surface(
             Modifier.fillMaxSize()
@@ -265,7 +265,7 @@ object DrawerOverlayService {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text("APP DRAWER SETTINGS", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                                Text("Personalize your app drawer", color = Color(0xFF9DAAC2), fontSize = 12.sp)
+                                Text("Personalize your app drawer", color = Color(0xFFB3B3B3), fontSize = 12.sp)
                             }
                             DrawerAction("DONE", true) { showingSettings = false }
                         }
@@ -315,7 +315,7 @@ object DrawerOverlayService {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             DividerLine()
                             Text("MANAGE APPS", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                            Text("Choose which apps appear. Pin favorites to keep them first.", color = Color(0xFF9DAAC2), fontSize = 11.sp)
+                            Text("Choose which apps appear. Pin favorites to keep them first.", color = Color(0xFFB3B3B3), fontSize = 11.sp)
                             Text("${visibleApps.size} visible · ${allApps.size} installed", color = accent, fontSize = 11.sp)
                         }
                     }
@@ -349,7 +349,7 @@ object DrawerOverlayService {
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text("Apps", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                            Text("${visibleApps.size} apps installed", color = Color(0xFF9DAAC2), fontSize = 11.sp)
+                            Text("${visibleApps.size} apps installed", color = Color(0xFFB3B3B3), fontSize = 11.sp)
                         }
                         DrawerAction("⚙  SETTINGS", false) { showingSettings = true }
                         Spacer(Modifier.width(8.dp))
@@ -423,12 +423,12 @@ object DrawerOverlayService {
         val shape = RoundedCornerShape(12.dp)
         Text(
             label,
-            color = if (selected) Color.White else Color(0xFFD0D7E6),
+            color = if (selected) Color(0xFF111111) else Color(0xFFE0E0E0),
             fontSize = 11.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             modifier = modifier
-                .background(if (selected) Color(0xFF5941A5) else Color(0xFF263247), shape)
-                .then(if (selected) Modifier.border(1.dp, Color(0xFFB69BFF), shape) else Modifier)
+                .background(if (selected) Color(0xFFF5F5F5) else Color(0xFF2D2D2D), shape)
+                .then(if (selected) Modifier.border(1.dp, Color(0xFFFFFFFF), shape) else Modifier)
                 .clickable(onClick = onClick)
                 .padding(horizontal = 13.dp, vertical = 10.dp)
         )
@@ -449,8 +449,8 @@ object DrawerOverlayService {
             Modifier.width(74.dp).height(88.dp).graphicsLayer { scaleX = scale; scaleY = scale }
                 .onFocusChanged { focused = it.isFocused }
                 .shadow(if (focused && focusGlow) 22.dp else 5.dp, shape, clip = false)
-                .background(if (focused) Color(0xFF3B2B70) else Color(0xFF1B2639), shape)
-                .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFB58CFF), shape) else Modifier)
+                .background(if (focused) Color(0xFF303030) else Color(0xFF1E1E1E), shape)
+                .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFFFFFFF), shape) else Modifier)
                 .clickable(onClick = onClick).padding(vertical = 8.dp, horizontal = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
@@ -473,8 +473,8 @@ object DrawerOverlayService {
         Column(
             Modifier.width(52.dp).height(68.dp).onFocusChanged { focused = it.isFocused }
                 .shadow(if (focused && focusGlow) 22.dp else 5.dp, shape, clip = false)
-                .background(if (focused) Color(0xFF3B2B70) else Color(0xFF1B2639), shape)
-                .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFB58CFF), shape) else Modifier)
+                .background(if (focused) Color(0xFF303030) else Color(0xFF1E1E1E), shape)
+                .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFFFFFFF), shape) else Modifier)
                 .clickable(onClick = onClick).padding(vertical = 8.dp, horizontal = 5.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -498,8 +498,8 @@ object DrawerOverlayService {
             Modifier.fillMaxWidth().height(96.dp).graphicsLayer { scaleX = scale; scaleY = scale }
                 .onFocusChanged { focused = it.isFocused }
                 .shadow(if (focused && focusGlow) 22.dp else 5.dp, shape, clip = false)
-                .background(if (focused) Color(0xFF3A2B70) else Color(0xFF1B2639), shape)
-                .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFB58CFF), shape) else Modifier)
+                .background(if (focused) Color(0xFF303030) else Color(0xFF1E1E1E), shape)
+                .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFFFFFFF), shape) else Modifier)
                 .clickable(onClick = onClick).padding(9.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
@@ -511,7 +511,7 @@ object DrawerOverlayService {
 
     @Composable
     private fun DividerLine() {
-        Spacer(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF344158)))
+        Spacer(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF333333)))
     }
 
     private class OverlayLifecycleOwner : LifecycleOwner, SavedStateRegistryOwner, ViewModelStoreOwner {
