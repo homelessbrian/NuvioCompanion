@@ -31,7 +31,6 @@ class RemoteKeyAccessibilityService : AccessibilityService() {
         // configured shortcut or left for the overlay's focused child to ignore.
         if (DrawerOverlayService.handleBackKey(event)) return true
 
-        publishInputEvent(event, isMappedKey(event.keyCode))
         if (DrawerSettings.isRecording(this)) {
             if (event.action == KeyEvent.ACTION_DOWN) {
                 if (event.repeatCount == 0) {
@@ -100,13 +99,6 @@ class RemoteKeyAccessibilityService : AccessibilityService() {
         return keyCode == primary || (mode == ShortcutMode.COMBINATION && second != 0 && keyCode == second)
     }
 
-    private fun publishInputEvent(event: KeyEvent, mapped: Boolean) {
-        if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount != 0) return
-        sendBroadcast(Intent(ACTION_INPUT_EVENT).setPackage(packageName)
-            .putExtra(EXTRA_KEY_CODE, event.keyCode)
-            .putExtra(EXTRA_MAPPED, mapped))
-    }
-
     private fun handleDoublePress() {
         val waiting = pendingDouble
         if (waiting != null) {
@@ -153,12 +145,9 @@ class RemoteKeyAccessibilityService : AccessibilityService() {
 
     companion object {
         const val ACTION_SHORTCUT_RECORDED = "com.homelessbrian.nuviocompanion.SHORTCUT_RECORDED"
-        const val ACTION_INPUT_EVENT = "com.homelessbrian.nuviocompanion.INPUT_EVENT"
         const val ACTION_SHORTCUT_TRIGGERED = "com.homelessbrian.nuviocompanion.SHORTCUT_TRIGGERED"
         const val ACTION_OVERLAY_STATUS = "com.homelessbrian.nuviocompanion.OVERLAY_STATUS"
         const val EXTRA_STATUS = "status"
-        const val EXTRA_KEY_CODE = "key_code"
-        const val EXTRA_MAPPED = "mapped"
         private const val DOUBLE_PRESS_WINDOW = 320L
         private const val LONG_PRESS_TIMEOUT = 600L
     }
