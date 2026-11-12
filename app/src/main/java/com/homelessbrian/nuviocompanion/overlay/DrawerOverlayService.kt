@@ -319,7 +319,7 @@ object DrawerOverlayService {
                             Text("${visibleApps.size} visible · ${allApps.size} installed", color = accent, fontSize = 11.sp)
                         }
                     }
-                    items(allApps, key = { it.packageName }) { app ->
+                    columnItems(allApps, key = { it.packageName }) { app ->
                         Row(
                             Modifier.fillMaxWidth().background(tile, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 7.dp),
                             verticalAlignment = Alignment.CenterVertically
