@@ -133,8 +133,8 @@ object DrawerOverlayService {
                 params.gravity = Gravity.START or Gravity.CENTER_VERTICAL
             }
             DrawerPosition.RIGHT -> {
-                params.width = (metrics.widthPixels * .15f).toInt()
-                params.height = (metrics.heightPixels * .88f).toInt()
+                params.width = (metrics.widthPixels * .085f).toInt()
+                params.height = (metrics.heightPixels * .82f).toInt()
                 params.gravity = Gravity.END or Gravity.CENTER_VERTICAL
             }
             DrawerPosition.CENTER -> {
@@ -159,7 +159,7 @@ object DrawerOverlayService {
                 DrawerPosition.TOP -> Triple((service.resources.displayMetrics.widthPixels * .68f).toInt(), (service.resources.displayMetrics.heightPixels * .18f).toInt(), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
                 DrawerPosition.BOTTOM -> Triple((service.resources.displayMetrics.widthPixels * .68f).toInt(), (service.resources.displayMetrics.heightPixels * .18f).toInt(), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
                 DrawerPosition.LEFT -> Triple((service.resources.displayMetrics.widthPixels * .085f).toInt(), (service.resources.displayMetrics.heightPixels * .82f).toInt(), Gravity.START or Gravity.CENTER_VERTICAL)
-                DrawerPosition.RIGHT -> Triple((service.resources.displayMetrics.widthPixels * .15f).toInt(), (service.resources.displayMetrics.heightPixels * .88f).toInt(), Gravity.END or Gravity.CENTER_VERTICAL)
+                DrawerPosition.RIGHT -> Triple((service.resources.displayMetrics.widthPixels * .085f).toInt(), (service.resources.displayMetrics.heightPixels * .82f).toInt(), Gravity.END or Gravity.CENTER_VERTICAL)
                 DrawerPosition.CENTER -> Triple((service.resources.displayMetrics.widthPixels * .72f).toInt(), (service.resources.displayMetrics.heightPixels * .68f).toInt(), Gravity.CENTER)
             }
 
@@ -257,7 +257,7 @@ object DrawerOverlayService {
         ) {
             if (showingSettings) {
                 LazyColumn(
-                    Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 18.dp),
+                    Modifier.fillMaxSize().focusGroup().padding(horizontal = 22.dp, vertical = 18.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                     contentPadding = PaddingValues(bottom = 24.dp)
                 ) {
@@ -430,6 +430,7 @@ object DrawerOverlayService {
                 .background(if (selected) Color(0xFFF5F5F5) else Color(0xFF2D2D2D), shape)
                 .then(if (selected) Modifier.border(1.dp, Color(0xFFFFFFFF), shape) else Modifier)
                 .clickable(onClick = onClick)
+                .focusable()
                 .padding(horizontal = 13.dp, vertical = 10.dp)
         )
     }
@@ -451,7 +452,7 @@ object DrawerOverlayService {
                 .shadow(if (focused && focusGlow) 22.dp else 5.dp, shape, clip = false)
                 .background(if (focused) Color(0xFF303030) else Color(0xFF1E1E1E), shape)
                 .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFFFFFFF), shape) else Modifier)
-                .clickable(onClick = onClick).padding(vertical = 8.dp, horizontal = 6.dp),
+                .clickable(onClick = onClick).focusable().padding(vertical = 8.dp, horizontal = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -475,7 +476,7 @@ object DrawerOverlayService {
                 .shadow(if (focused && focusGlow) 22.dp else 5.dp, shape, clip = false)
                 .background(if (focused) Color(0xFF303030) else Color(0xFF1E1E1E), shape)
                 .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFFFFFFF), shape) else Modifier)
-                .clickable(onClick = onClick).padding(vertical = 8.dp, horizontal = 5.dp),
+                .clickable(onClick = onClick).focusable().padding(vertical = 8.dp, horizontal = 5.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             if (showIcons) Image(app.icon.toBitmap(112, 112).asImageBitmap(), app.label, Modifier.size(40.dp))
@@ -500,7 +501,7 @@ object DrawerOverlayService {
                 .shadow(if (focused && focusGlow) 22.dp else 5.dp, shape, clip = false)
                 .background(if (focused) Color(0xFF303030) else Color(0xFF1E1E1E), shape)
                 .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFFFFFFF), shape) else Modifier)
-                .clickable(onClick = onClick).padding(9.dp),
+                .clickable(onClick = onClick).focusable().padding(9.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
