@@ -6,25 +6,64 @@ import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.os.Build
 
-data class InstalledApp(val label: String, val packageName: String, val icon: Drawable)
+data class InstalledApp(
+    val label: String,
+    val packageName: String,
+    val icon: Drawable,
+    val isTvBanner: Boolean = false
+)
 
 object AppCatalog {
     fun load(context: Context, includeHidden: Boolean = false): List<InstalledApp> {
         val pm = context.packageManager
-        val intents = listOf(
-            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER),
-            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        )
+        val leanbackIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER)
+        val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+
+        fun query(intent: Intent) =
+            if (Build.VERSION.SDK_INT >= 33) pm.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(0))
+            else @Suppress("DEPRECATION") pm.queryIntentActivities(intent, 0)
+
+        val leanbackMatches = query(leanbackIntent)
+        val launcherMatches = query(launcherIntent)
+        val allMatches = (leanbackMatches + launcherMatches)
         val found = linkedMapOf<String, InstalledApp>()
-        intents.forEach { intent ->
-            val matches = if (Build.VERSION.SDK_INT >= 33) pm.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(0))
-                else @Suppress("DEPRECATION") pm.queryIntentActivities(intent, 0)
-            matches.forEach { info ->
-                val activity = info.activityInfo ?: return@forEach
-                if (activity.packageName == context.packageName || found.containsKey(activity.packageName)) return@forEach
-                found[activity.packageName] = InstalledApp(info.loadLabel(pm).toString(), activity.packageName, IconPackManager.iconFor(context, DrawerSettings.iconPack(context), activity.packageName, DrawerSettings.appIconOverride(context, activity.packageName)) ?: info.loadIcon(pm))
-            }
+        val selectedPack = DrawerSettings.iconPack(context)
+
+        allMatches.forEach { info ->
+            val activity = info.activityInfo ?: return@forEach
+            val packageName = activity.packageName
+            if (packageName == context.packageName || found.containsKey(packageName)) return@forEach
+
+            val isLeanback = leanbackMatches.any { it.activityInfo?.packageName == packageName }
+            val packIcon = IconPackManager.iconFor(
+                context,
+                selectedPack,
+                packageName,
+                DrawerSettings.appIconOverride(context, packageName)
+            )
+
+            // TV banners are landscape artwork intended for ten-foot launcher interfaces.
+            val banner = if (isLeanback) {
+                runCatching { info.loadBanner(pm) }.getOrNull()
+                    ?: runCatching {
+                        if (activity.banner != 0) pm.getDrawable(packageName, activity.banner, activity.applicationInfo) else null
+                    }.getOrNull()
+                    ?: runCatching {
+                        val bannerId = activity.applicationInfo.banner
+                        if (bannerId != 0) pm.getDrawable(packageName, bannerId, activity.applicationInfo) else null
+                    }.getOrNull()
+            } else null
+
+            val launcherIcon = runCatching { info.loadIcon(pm) }.getOrNull()
+            val chosen = packIcon ?: banner ?: launcherIcon ?: return@forEach
+            found[packageName] = InstalledApp(
+                label = info.loadLabel(pm).toString(),
+                packageName = packageName,
+                icon = chosen,
+                isTvBanner = packIcon == null && banner != null
+            )
         }
+
         val hidden = if (includeHidden) emptySet() else DrawerSettings.hidden(context)
         val order = DrawerSettings.order(context)
         val favorites = DrawerSettings.favorites(context)
