@@ -9,7 +9,7 @@ import org.xmlpull.v1.XmlPullParser
 import java.io.InputStream
 
 data class InstalledIconPack(val packageName: String, val label: String)
-data class IconPackEntry(val component: String, val drawableName: String)
+data class IconPackEntry(val component: String, val drawableName: String, val category: String = "")
 
 object IconPackManager {
     private val THEME_ACTIONS = listOf("org.adw.ActivityStarter.THEMES", "com.novalauncher.THEME", "com.anddoes.launcher.THEME", "com.teslacoilsw.launcher.THEME")
@@ -27,18 +27,61 @@ object IconPackManager {
         }.distinctBy { it.packageName }.sortedBy { it.label.lowercase() }
     }
 
+    /**
+     * Returns the pack's complete browsable icon catalogue. Blueprint-based packs expose
+     * this through drawable.xml; appfilter.xml is only the automatic app-to-icon mapping
+     * and must not be used as the picker catalogue.
+     */
     fun entries(context: Context, packPackage: String?): List<IconPackEntry> {
         if (packPackage.isNullOrBlank()) return emptyList()
         return runCatching {
             val packContext = context.createPackageContext(packPackage, Context.CONTEXT_IGNORE_SECURITY)
-            val parsed = runCatching {
-                packContext.assets.open("appfilter.xml").use(::readEntries)
+            val catalog = runCatching {
+                packContext.assets.open("drawable.xml").use(::readCatalog)
             }.getOrNull() ?: runCatching {
-                val xmlId = packContext.resources.getIdentifier("appfilter", "xml", packPackage)
-                if (xmlId == 0) emptyList() else packContext.resources.getXml(xmlId).use(::readEntries)
+                val xmlId = packContext.resources.getIdentifier("drawable", "xml", packPackage)
+                if (xmlId == 0) emptyList() else packContext.resources.getXml(xmlId).use(::readCatalog)
             }.getOrNull().orEmpty()
-            parsed.distinctBy { it.component }.sortedBy { it.component.substringAfter('/').substringBefore('}').lowercase() }
+
+            catalog.distinctBy { it.drawableName }
+                .filter { drawable(context, packPackage, it.drawableName) != null }
+                .sortedWith(compareBy<IconPackEntry> { it.category.lowercase() }.thenBy { it.drawableName.lowercase() })
         }.getOrDefault(emptyList())
+    }
+
+    private fun readCatalog(input: InputStream): List<IconPackEntry> {
+        val parser = Xml.newPullParser()
+        parser.setInput(input, "UTF-8")
+        return readCatalog(parser)
+    }
+
+    private fun readCatalog(parser: XmlPullParser): List<IconPackEntry> {
+        val result = mutableListOf<IconPackEntry>()
+        var category = ""
+        var event = parser.eventType
+        while (event != XmlPullParser.END_DOCUMENT) {
+            if (event == XmlPullParser.START_TAG) {
+                when (parser.name) {
+                    "category" -> category = parser.getAttributeValue(null, "title")
+                        ?: parser.getAttributeValue(null, "name")
+                        ?: ""
+                    "item" -> {
+                        val drawable = parser.getAttributeValue(null, "drawable").orEmpty()
+                        if (drawable.isNotBlank()) {
+                            result += IconPackEntry(
+                                component = "",
+                                drawableName = drawable,
+                                category = category
+                            )
+                        }
+                    }
+                }
+            } else if (event == XmlPullParser.END_TAG && parser.name == "category") {
+                category = ""
+            }
+            event = parser.next()
+        }
+        return result
     }
 
     fun iconFor(context: Context, packPackage: String?, appPackage: String, overrideName: String? = null): Drawable? {
