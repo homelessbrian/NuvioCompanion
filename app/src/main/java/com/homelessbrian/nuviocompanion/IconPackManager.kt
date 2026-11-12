@@ -30,9 +30,14 @@ object IconPackManager {
         if (packPackage.isNullOrBlank()) return null
         return runCatching {
             val packContext = context.createPackageContext(packPackage, Context.CONTEXT_IGNORE_SECURITY)
-            val drawableName = packContext.assets.open("appfilter.xml").use { input ->
-                findDrawableName(input, appPackage)
-            } ?: return@runCatching null
+            val drawableName = runCatching {
+                packContext.assets.open("appfilter.xml").use { input -> findDrawableName(input, appPackage) }
+            }.getOrNull() ?: runCatching {
+                val xmlId = packContext.resources.getIdentifier("appfilter", "xml", packPackage)
+                if (xmlId == 0) null else packContext.resources.getXml(xmlId).use { parser ->
+                    findDrawableName(parser, appPackage)
+                }
+            }.getOrNull() ?: return@runCatching null
             val id = packContext.resources.getIdentifier(drawableName, "drawable", packPackage)
                 .takeIf { it != 0 }
                 ?: packContext.resources.getIdentifier(drawableName, "mipmap", packPackage)
