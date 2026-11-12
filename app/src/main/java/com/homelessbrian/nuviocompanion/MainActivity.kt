@@ -138,10 +138,19 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
                     val received = i.getIntExtra(RemoteKeyAccessibilityService.EXTRA_KEY_CODE, 0)
                     val mapped = i.getBooleanExtra(RemoteKeyAccessibilityService.EXTRA_MAPPED, false)
                     inputStatus = if (mapped) "Received key $received · assigned shortcut · Companion consumes it" else "Received key $received · not assigned · original action is left alone"
+                } else if (i?.action == RemoteKeyAccessibilityService.ACTION_SHORTCUT_TRIGGERED) {
+                    inputStatus = "Shortcut activated · opening app drawer…"
+                } else if (i?.action == RemoteKeyAccessibilityService.ACTION_OVERLAY_STATUS) {
+                    inputStatus = i.getStringExtra(RemoteKeyAccessibilityService.EXTRA_STATUS) ?: "Drawer status unavailable"
                 }
             }
         }
-        val filter = IntentFilter().apply { addAction(RemoteKeyAccessibilityService.ACTION_SHORTCUT_RECORDED); addAction(RemoteKeyAccessibilityService.ACTION_INPUT_EVENT) }
+        val filter = IntentFilter().apply {
+            addAction(RemoteKeyAccessibilityService.ACTION_SHORTCUT_RECORDED)
+            addAction(RemoteKeyAccessibilityService.ACTION_INPUT_EVENT)
+            addAction(RemoteKeyAccessibilityService.ACTION_SHORTCUT_TRIGGERED)
+            addAction(RemoteKeyAccessibilityService.ACTION_OVERLAY_STATUS)
+        }
         if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED) else @Suppress("DEPRECATION") context.registerReceiver(receiver, filter)
         onDispose { runCatching { context.unregisterReceiver(receiver) } }
     }
