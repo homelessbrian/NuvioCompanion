@@ -14,14 +14,21 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items as columnItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -149,66 +156,162 @@ object DrawerOverlayService {
 
     @Composable
     private fun DrawerContent(context: Context, onClose: () -> Unit, onLaunch: (String) -> Unit) {
-        val apps = remember { AppCatalog.load(context) }
-        Surface(Modifier.fillMaxSize().padding(10.dp), shape = RoundedCornerShape(24.dp), color = Color(0xF2191E2A)) {
-            Column(Modifier.fillMaxSize().padding(22.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column {
-                        Text("YOUR APPS", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                        Text("${apps.size} installed apps", color = Color(0xFFABB6CC), fontSize = 13.sp)
-                    }
-                    Text("BACK  ·  CLOSE", color = Color(0xFFABB6CC), fontSize = 12.sp)
-                }
-                Spacer(Modifier.height(18.dp))
-                val firstAppFocus = remember { FocusRequester() }
-                LaunchedEffect(apps.size) {
-                    if (apps.isNotEmpty()) firstAppFocus.requestFocus()
-                }
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 116.dp),
-                    modifier = Modifier.fillMaxSize().focusGroup(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(apps, key = { it.packageName }) { app ->
-                        var isFocused by remember(app.packageName) { mutableStateOf(false) }
-                        val focusModifier = if (apps.firstOrNull()?.packageName == app.packageName) {
-                            Modifier.focusRequester(firstAppFocus)
-                        } else Modifier
+        val allApps = remember { AppCatalog.load(context, true) }
+        var showingSettings by remember { mutableStateOf(false) }
+        var hidden by remember { mutableStateOf(DrawerSettings.hidden(context)) }
+        var favorites by remember { mutableStateOf(DrawerSettings.favorites(context)) }
+        var position by remember { mutableStateOf(DrawerSettings.position(context)) }
+        val isSide = position == DrawerPosition.LEFT || position == DrawerPosition.RIGHT
+        val isCenter = position == DrawerPosition.CENTER
+        val visibleApps = allApps.filter { it.packageName !in hidden }
+        val bg = Color(0xF20C1220)
+        val tile = Color(0xFF182338)
+        val accent = Color(0xFF9B8CFF)
 
-                        Column(
-                            focusModifier
-                                .onFocusChanged { isFocused = it.isFocused }
-                                .height(116.dp)
-                                .background(
-                                    if (isFocused) Color(0xFF394D78) else Color(0xFF252D3D),
-                                    RoundedCornerShape(16.dp)
-                                )
-                                .then(
-                                    if (isFocused) Modifier.border(
-                                        width = 3.dp,
-                                        color = Color(0xFF9DB5FF),
-                                        shape = RoundedCornerShape(16.dp)
-                                    ) else Modifier
-                                )
-                                .focusable()
-                                .clickable { onLaunch(app.packageName) }
-                                .padding(10.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
+        Surface(
+            Modifier.fillMaxSize().padding(8.dp),
+            shape = RoundedCornerShape(22.dp),
+            color = bg
+        ) {
+            Column(Modifier.fillMaxSize().padding(if (isSide) 14.dp else 18.dp)) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(if (showingSettings) "DRAWER SETTINGS" else "YOUR APPS", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            if (showingSettings) "Customize this drawer without leaving your app" else "${visibleApps.size} apps · Select an app to open",
+                            color = Color(0xFF9EABC3),
+                            fontSize = 11.sp
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        DrawerAction("Apps", !showingSettings) { showingSettings = false }
+                        DrawerAction("Settings", showingSettings) { showingSettings = true }
+                        DrawerAction("×", false, onClose)
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+
+                if (showingSettings) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("POSITION", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                            DrawerPosition.entries.forEach { option ->
+                                DrawerAction(option.name.lowercase().replaceFirstChar { it.uppercase() }, position == option) {
+                                    position = option
+                                    DrawerSettings.setPosition(context, option)
+                                }
+                            }
+                        }
+                        Text("VISIBLE APPS", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            columnItems(allApps, key = { it.packageName }) { app ->
+                                Row(
+                                    Modifier.fillMaxWidth().background(tile, RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Image(app.icon.toBitmap(72, 72).asImageBitmap(), app.label, Modifier.size(30.dp))
+                                    Spacer(Modifier.width(10.dp))
+                                    Text(app.label, color = Color.White, modifier = Modifier.weight(1f), maxLines = 1, fontSize = 12.sp)
+                                    Text(
+                                        if (app.packageName in favorites) "★" else "☆",
+                                        color = accent,
+                                        modifier = Modifier.clickable {
+                                            favorites = if (app.packageName in favorites) favorites - app.packageName else favorites + app.packageName
+                                            DrawerSettings.setFavorites(context, favorites)
+                                        }.padding(8.dp)
+                                    )
+                                    Switch(
+                                        checked = app.packageName !in hidden,
+                                        onCheckedChange = { show ->
+                                            hidden = if (show) hidden - app.packageName else hidden + app.packageName
+                                            DrawerSettings.setHidden(context, hidden)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    if (isSide) {
+                        LazyColumn(
+                            Modifier.weight(1f).fillMaxWidth().focusGroup(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Image(app.icon.toBitmap(96, 96).asImageBitmap(), app.label, Modifier.size(54.dp))
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                app.label,
-                                color = Color.White,
-                                fontSize = 13.sp,
-                                maxLines = 1
-                            )
+                            columnItems(visibleApps, key = { it.packageName }) { app ->
+                                DrawerAppTile(app, tile, accent, compact = true) { onLaunch(app.packageName) }
+                            }
+                        }
+                    } else if (isCenter) {
+                        LazyVerticalGrid(
+                            columns = GridCells.Adaptive(minSize = 104.dp),
+                            modifier = Modifier.weight(1f).fillMaxWidth().focusGroup(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(visibleApps, key = { it.packageName }) { app ->
+                                DrawerAppTile(app, tile, accent, compact = false) { onLaunch(app.packageName) }
+                            }
+                        }
+                    } else {
+                        LazyRow(
+                            Modifier.weight(1f).fillMaxWidth().focusGroup(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            items(visibleApps, key = { it.packageName }) { app ->
+                                DrawerAppTile(app, tile, accent, compact = false) { onLaunch(app.packageName) }
+                            }
                         }
                     }
                 }
             }
+        }
+    }
+
+    @Composable
+    private fun DrawerAction(label: String, selected: Boolean, onClick: () -> Unit) {
+        Text(
+            label,
+            color = if (selected) Color.White else Color(0xFFB7C2D8),
+            fontSize = 11.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            modifier = Modifier
+                .background(if (selected) Color(0xFF5545A8) else Color(0xFF202B40), RoundedCornerShape(10.dp))
+                .clickable(onClick = onClick)
+                .focusable()
+                .padding(horizontal = 11.dp, vertical = 9.dp)
+        )
+    }
+
+    @Composable
+    private fun DrawerAppTile(
+        app: com.homelessbrian.nuviocompanion.InstalledApp,
+        tileColor: Color,
+        accent: Color,
+        compact: Boolean,
+        onClick: () -> Unit
+    ) {
+        var focused by remember(app.packageName) { mutableStateOf(false) }
+        Column(
+            Modifier
+                .width(if (compact) 112.dp else 116.dp)
+                .height(if (compact) 76.dp else 104.dp)
+                .onFocusChanged { focused = it.isFocused }
+                .background(if (focused) Color(0xFF34305C) else tileColor, RoundedCornerShape(14.dp))
+                .then(if (focused) Modifier.border(2.dp, accent, RoundedCornerShape(14.dp)) else Modifier)
+                .clickable(onClick = onClick)
+                .focusable()
+                .padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Image(app.icon.toBitmap(96, 96).asImageBitmap(), app.label, Modifier.size(if (compact) 34.dp else 46.dp))
+            Spacer(Modifier.height(5.dp))
+            Text(app.label, color = Color.White, fontSize = 11.sp, maxLines = 1)
         }
     }
 
