@@ -73,14 +73,21 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
     var secondKeyCode by remember { mutableIntStateOf(DrawerSettings.secondKeyCode(context)) }
     var recording by remember { mutableStateOf(DrawerSettings.isRecording(context)) }
     var refresh by remember { mutableIntStateOf(0) }
+    var inputStatus by remember { mutableStateOf("Press a remote button here to test whether Android delivers it to Companion.") }
 
     DisposableEffect(Unit) {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context?, i: Intent?) {
-                keyCode = DrawerSettings.keyCode(context); secondKeyCode = DrawerSettings.secondKeyCode(context); recording = false
+                if (i?.action == RemoteKeyAccessibilityService.ACTION_SHORTCUT_RECORDED) {
+                    keyCode = DrawerSettings.keyCode(context); secondKeyCode = DrawerSettings.secondKeyCode(context); recording = false
+                } else if (i?.action == RemoteKeyAccessibilityService.ACTION_INPUT_EVENT) {
+                    val received = i.getIntExtra(RemoteKeyAccessibilityService.EXTRA_KEY_CODE, 0)
+                    val mapped = i.getBooleanExtra(RemoteKeyAccessibilityService.EXTRA_MAPPED, false)
+                    inputStatus = if (mapped) "Received key $received · assigned shortcut · Companion consumes it" else "Received key $received · not assigned · original action is left alone"
+                }
             }
         }
-        val filter = IntentFilter(RemoteKeyAccessibilityService.ACTION_SHORTCUT_RECORDED)
+        val filter = IntentFilter().apply { addAction(RemoteKeyAccessibilityService.ACTION_SHORTCUT_RECORDED); addAction(RemoteKeyAccessibilityService.ACTION_INPUT_EVENT) }
         if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED) else @Suppress("DEPRECATION") context.registerReceiver(receiver, filter)
         onDispose { runCatching { context.unregisterReceiver(receiver) } }
     }
@@ -107,9 +114,13 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
                 }
             }
             item {
-                PanelCard("Remote shortcut", "The shortcut runs above other apps. Android may restrict which remote keys can be intercepted.") {
+                PanelCard("Remote shortcut & input handling", "Companion uses Android's accessibility key-event filter to take ownership of assigned buttons. Assigned key-down, repeat, and key-up events are consumed so the original action should not also fire when Android delivers them to the service.") {
+                    Text("INPUT TEST", color = Accent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text(inputStatus, color = Color.White, fontSize = 13.sp)
+                    Text("Try the button you plan to assign. If nothing appears, the device may be intercepting that key before Android exposes it to accessibility services.", color = Muted, fontSize = 12.sp)
                     Text(if (keyCode == 0) "No primary button recorded" else "Primary button · key code $keyCode", color = if (keyCode == 0) Muted else Accent)
                     Button(onClick = onAccessibility) { Text("Open accessibility settings") }
+                    Text("Alternative handling is built into Companion's event-consumption path; there is no separate Android API that can universally override firmware-handled buttons. Some manufacturers expose their own alternative-input options, which Companion cannot switch on for other apps.", color = Muted, fontSize = 12.sp)
                     Button(onClick = { DrawerSettings.setRecordingTarget(context, "primary"); DrawerSettings.setRecording(context, true); recording = true }) { Text(if (recording && DrawerSettings.recordingTarget(context) == "primary") "Listening for primary…" else "Record primary button") }
                     if (mode == ShortcutMode.COMBINATION) {
                         Text(if (secondKeyCode == 0) "No second button recorded" else "Second button · key code $secondKeyCode", color = Muted)
