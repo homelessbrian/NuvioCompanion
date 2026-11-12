@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items as columnItems
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -448,8 +449,6 @@ object DrawerOverlayService {
                     Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 18.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("⠿", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(12.dp))
                     LazyColumn(
                         Modifier.weight(1f).fillMaxWidth().focusGroup(),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -461,7 +460,7 @@ object DrawerOverlayService {
                         }
                     }
                     Spacer(Modifier.height(8.dp))
-                    DrawerAction("⚙", false) { showingSettings = true }
+                    DrawerIconAction("⚙", Modifier.size(44.dp)) { showingSettings = true }
                 }
             } else {
                 Column(
@@ -509,6 +508,22 @@ object DrawerOverlayService {
                 .clickable(onClick = onClick)
                 .focusable()
                 .padding(horizontal = 13.dp, vertical = 10.dp)
+        )
+    }
+
+    @Composable
+    private fun DrawerIconAction(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+        var focused by remember(label) { mutableStateOf(false) }
+        Text(
+            label,
+            color = Color.White,
+            fontSize = 21.sp,
+            modifier = modifier
+                .onFocusChanged { focused = it.isFocused }
+                .then(if (focused) Modifier.border(1.dp, Color.White.copy(alpha = 0.9f), CircleShape) else Modifier)
+                .clickable(onClick = onClick)
+                .focusable(),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
     }
 
