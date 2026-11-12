@@ -10,60 +10,111 @@ import com.homelessbrian.nuviocompanion.DrawerSettings
 import com.homelessbrian.nuviocompanion.ShortcutMode
 import com.homelessbrian.nuviocompanion.overlay.DrawerOverlayService
 
+/**
+ * Handles configured remote shortcuts.
+ *
+ * Returning true from onKeyEvent is intentional: it consumes the mapped key event so the
+ * device/app underneath does not also execute the remote's default action.
+ */
 class RemoteKeyAccessibilityService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
     private var pendingDouble: Runnable? = null
     private var longPressFired = false
     private val downKeys = mutableSetOf<Int>()
+    private val consumedKeys = mutableSetOf<Int>()
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
     override fun onInterrupt() { resetGesture() }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
         if (DrawerSettings.isRecording(this)) {
-            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                if (DrawerSettings.recordingTarget(this) == "secondary") DrawerSettings.setSecondKeyCode(this, event.keyCode)
-                else DrawerSettings.setKeyCode(this, event.keyCode)
-                DrawerSettings.setRecording(this, false)
-                sendBroadcast(Intent(ACTION_SHORTCUT_RECORDED).setPackage(packageName))
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                if (event.repeatCount == 0) {
+                    if (DrawerSettings.recordingTarget(this) == "secondary") DrawerSettings.setSecondKeyCode(this, event.keyCode)
+                    else DrawerSettings.setKeyCode(this, event.keyCode)
+                    DrawerSettings.setRecording(this, false)
+                    consumedKeys.add(event.keyCode)
+                    sendBroadcast(Intent(ACTION_SHORTCUT_RECORDED).setPackage(packageName))
+                }
                 return true
             }
+            if (event.action == KeyEvent.ACTION_UP && consumedKeys.remove(event.keyCode)) return true
             return false
         }
+
         val primary = DrawerSettings.keyCode(this)
-        if (primary == 0) return false
-        when (event.action) {
-            KeyEvent.ACTION_DOWN -> {
-                downKeys.add(event.keyCode)
-                if (event.keyCode == primary && event.repeatCount == 0) {
-                    longPressFired = false
-                    when (DrawerSettings.shortcutMode(this)) {
-                        ShortcutMode.SINGLE -> trigger()
-                        ShortcutMode.DOUBLE -> {
-                            val waiting = pendingDouble
-                            if (waiting != null) { handler.removeCallbacks(waiting); pendingDouble = null; trigger() }
-                            else { val task = Runnable { pendingDouble = null }; pendingDouble = task; handler.postDelayed(task, DOUBLE_PRESS_WINDOW) }
-                        }
-                        ShortcutMode.LONG -> handler.postDelayed({ if (primary in downKeys) { longPressFired = true; trigger() } }, LONG_PRESS_TIMEOUT)
-                        ShortcutMode.COMBINATION -> {
-                            val second = DrawerSettings.secondKeyCode(this)
-                            if (second != 0 && second in downKeys) trigger()
-                        }
+        val mode = DrawerSettings.shortcutMode(this)
+        val second = DrawerSettings.secondKeyCode(this)
+        val isMappedKey = event.keyCode == primary ||
+            (mode == ShortcutMode.COMBINATION && second != 0 && event.keyCode == second)
+
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            downKeys.add(event.keyCode)
+            if (!isMappedKey) return false
+
+            // Consume every phase (including repeats) of configured keys, not only the
+            // event that activates the gesture. This prevents the remote's native action.
+            consumedKeys.add(event.keyCode)
+            if (event.repeatCount == 0) {
+                when (mode) {
+                    ShortcutMode.SINGLE -> if (event.keyCode == primary) trigger()
+                    ShortcutMode.DOUBLE -> if (event.keyCode == primary) handleDoublePress()
+                    ShortcutMode.LONG -> if (event.keyCode == primary) {
+                        longPressFired = false
+                        handler.postDelayed({
+                            if (primary in downKeys) {
+                                longPressFired = true
+                                trigger()
+                            }
+                        }, LONG_PRESS_TIMEOUT)
                     }
-                } else if (DrawerSettings.shortcutMode(this) == ShortcutMode.COMBINATION &&
-                    event.keyCode == DrawerSettings.secondKeyCode(this) && primary in downKeys) trigger()
+                    ShortcutMode.COMBINATION -> {
+                        if (primary != 0 && second != 0 && primary in downKeys && second in downKeys) trigger()
+                    }
+                }
             }
-            KeyEvent.ACTION_UP -> {
-                downKeys.remove(event.keyCode)
-                if (event.keyCode == primary && DrawerSettings.shortcutMode(this) == ShortcutMode.LONG && !longPressFired) handler.removeCallbacksAndMessages(null)
+            return true
+        }
+
+        if (event.action == KeyEvent.ACTION_UP) {
+            downKeys.remove(event.keyCode)
+            if (consumedKeys.remove(event.keyCode)) {
+                if (event.keyCode == primary && mode == ShortcutMode.LONG && !longPressFired) {
+                    handler.removeCallbacksAndMessages(null)
+                }
+                return true
             }
         }
         return false
     }
 
+    private fun handleDoublePress() {
+        val waiting = pendingDouble
+        if (waiting != null) {
+            handler.removeCallbacks(waiting)
+            pendingDouble = null
+            trigger()
+        } else {
+            val task = Runnable { pendingDouble = null }
+            pendingDouble = task
+            handler.postDelayed(task, DOUBLE_PRESS_WINDOW)
+        }
+    }
+
     private fun trigger() = DrawerOverlayService.toggle(this)
-    private fun resetGesture() { handler.removeCallbacksAndMessages(null); pendingDouble = null; downKeys.clear() }
-    override fun onDestroy() { DrawerOverlayService.close(); resetGesture(); super.onDestroy() }
+
+    private fun resetGesture() {
+        handler.removeCallbacksAndMessages(null)
+        pendingDouble = null
+        downKeys.clear()
+        consumedKeys.clear()
+    }
+
+    override fun onDestroy() {
+        DrawerOverlayService.close()
+        resetGesture()
+        super.onDestroy()
+    }
 
     companion object {
         const val ACTION_SHORTCUT_RECORDED = "com.homelessbrian.nuviocompanion.SHORTCUT_RECORDED"
