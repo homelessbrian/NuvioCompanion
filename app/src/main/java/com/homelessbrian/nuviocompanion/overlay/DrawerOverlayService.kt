@@ -2,6 +2,7 @@ package com.homelessbrian.nuviocompanion.overlay
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
+import android.content.Intent
 import android.graphics.PixelFormat
 import android.view.Gravity
 import android.view.KeyEvent
@@ -43,7 +44,17 @@ object DrawerOverlayService {
     private var owner: OverlayLifecycleOwner? = null
     private var windowManager: WindowManager? = null
 
-    fun toggle(service: AccessibilityService) { if (root == null) open(service) else close() }
+    fun toggle(service: AccessibilityService) {
+        if (root == null) open(service) else close()
+    }
+
+    private fun report(service: AccessibilityService, message: String) {
+        service.sendBroadcast(
+            Intent(com.homelessbrian.nuviocompanion.remote.RemoteKeyAccessibilityService.ACTION_OVERLAY_STATUS)
+                .setPackage(service.packageName)
+                .putExtra(com.homelessbrian.nuviocompanion.remote.RemoteKeyAccessibilityService.EXTRA_STATUS, message)
+        )
+    }
     fun close() {
         root?.let { runCatching { windowManager?.removeView(it) } }
         owner?.destroy()
@@ -51,6 +62,7 @@ object DrawerOverlayService {
     }
 
     private fun open(service: AccessibilityService) {
+        report(service, "Shortcut received. Creating app drawer…")
         val wm = service.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val position = DrawerSettings.position(service)
         val (width, height, gravity) = when (position) {
@@ -77,10 +89,13 @@ object DrawerOverlayService {
             wm.addView(composeView, params)
             root = composeView; owner = lifecycleOwner; windowManager = wm
             composeView.requestFocus()
-        } catch (_: SecurityException) {
+            report(service, "Drawer opened successfully.")
+        } catch (error: SecurityException) {
             lifecycleOwner.destroy()
-        } catch (_: RuntimeException) {
+            report(service, "Drawer permission error: ${error.message ?: "overlay rejected"}")
+        } catch (error: RuntimeException) {
             lifecycleOwner.destroy()
+            report(service, "Drawer startup error: ${error.javaClass.simpleName}: ${error.message ?: "unknown error"}")
         }
     }
 
