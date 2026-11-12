@@ -76,6 +76,16 @@ object DrawerOverlayService {
         if (root == null) open(service) else close()
     }
 
+    /** Back/Escape dismisses the modal drawer before the underlying app receives input. */
+    fun handleBackKey(event: KeyEvent): Boolean {
+        if (root == null) return false
+        if (event.keyCode != KeyEvent.KEYCODE_BACK && event.keyCode != KeyEvent.KEYCODE_ESCAPE) return false
+        if (event.action == KeyEvent.ACTION_UP) close()
+        return event.action == KeyEvent.ACTION_DOWN || event.action == KeyEvent.ACTION_UP
+    }
+
+    fun isOpen(): Boolean = root != null
+
     private fun report(service: AccessibilityService, message: String) {
         service.sendBroadcast(
             Intent(com.homelessbrian.nuviocompanion.remote.RemoteKeyAccessibilityService.ACTION_OVERLAY_STATUS)
