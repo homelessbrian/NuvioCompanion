@@ -9,6 +9,7 @@ import org.xmlpull.v1.XmlPullParser
 import java.io.InputStream
 
 data class InstalledIconPack(val packageName: String, val label: String)
+data class IconPackEntry(val component: String, val drawableName: String)
 
 object IconPackManager {
     private val THEME_ACTIONS = listOf("org.adw.ActivityStarter.THEMES", "com.novalauncher.THEME", "com.anddoes.launcher.THEME", "com.teslacoilsw.launcher.THEME")
@@ -26,18 +27,34 @@ object IconPackManager {
         }.distinctBy { it.packageName }.sortedBy { it.label.lowercase() }
     }
 
-    fun iconFor(context: Context, packPackage: String?, appPackage: String): Drawable? {
+    fun entries(context: Context, packPackage: String?): List<IconPackEntry> {
+        if (packPackage.isNullOrBlank()) return emptyList()
+        return runCatching {
+            val packContext = context.createPackageContext(packPackage, Context.CONTEXT_IGNORE_SECURITY)
+            val parsed = runCatching {
+                packContext.assets.open("appfilter.xml").use(::readEntries)
+            }.getOrNull() ?: runCatching {
+                val xmlId = packContext.resources.getIdentifier("appfilter", "xml", packPackage)
+                if (xmlId == 0) emptyList() else packContext.resources.getXml(xmlId).use(::readEntries)
+            }.getOrNull().orEmpty()
+            parsed.distinctBy { it.component }.sortedBy { it.component.substringAfter('/').substringBefore('}').lowercase() }
+        }.getOrDefault(emptyList())
+    }
+
+    fun iconFor(context: Context, packPackage: String?, appPackage: String, overrideName: String? = null): Drawable? {
         if (packPackage.isNullOrBlank()) return null
         return runCatching {
             val packContext = context.createPackageContext(packPackage, Context.CONTEXT_IGNORE_SECURITY)
-            val drawableName = runCatching {
-                packContext.assets.open("appfilter.xml").use { input -> findDrawableName(input, appPackage) }
-            }.getOrNull() ?: runCatching {
-                val xmlId = packContext.resources.getIdentifier("appfilter", "xml", packPackage)
-                if (xmlId == 0) null else packContext.resources.getXml(xmlId).use { parser ->
-                    findDrawableName(parser, appPackage)
-                }
-            }.getOrNull() ?: return@runCatching null
+            val drawableName = overrideName ?: entries(context, packPackage)
+                .firstOrNull { it.component.startsWith("ComponentInfo{$appPackage/") }?.drawableName
+                ?: return@runCatching null
+            drawable(packContext, packPackage, drawableName)
+        }.getOrNull()
+    }
+
+    fun drawable(context: Context, packPackage: String, drawableName: String): Drawable? =
+        runCatching {
+            val packContext = context.createPackageContext(packPackage, Context.CONTEXT_IGNORE_SECURITY)
             val id = packContext.resources.getIdentifier(drawableName, "drawable", packPackage)
                 .takeIf { it != 0 }
                 ?: packContext.resources.getIdentifier(drawableName, "mipmap", packPackage)
@@ -45,25 +62,24 @@ object IconPackManager {
                 ?: return@runCatching null
             packContext.getDrawable(id)
         }.getOrNull()
-    }
 
-    private fun findDrawableName(input: InputStream, appPackage: String): String? {
+    private fun readEntries(input: InputStream): List<IconPackEntry> {
         val parser = Xml.newPullParser()
         parser.setInput(input, "UTF-8")
-        return findDrawableName(parser, appPackage)
+        return readEntries(parser)
     }
 
-    private fun findDrawableName(parser: XmlPullParser, appPackage: String): String? {
+    private fun readEntries(parser: XmlPullParser): List<IconPackEntry> {
+        val result = mutableListOf<IconPackEntry>()
         var event = parser.eventType
         while (event != XmlPullParser.END_DOCUMENT) {
             if (event == XmlPullParser.START_TAG && parser.name == "item") {
                 val component = parser.getAttributeValue(null, "component").orEmpty()
-                if (component.startsWith("ComponentInfo{$appPackage/")) {
-                    return parser.getAttributeValue(null, "drawable")
-                }
+                val drawable = parser.getAttributeValue(null, "drawable").orEmpty()
+                if (component.isNotBlank() && drawable.isNotBlank()) result += IconPackEntry(component, drawable)
             }
             event = parser.next()
         }
-        return null
+        return result
     }
 }
