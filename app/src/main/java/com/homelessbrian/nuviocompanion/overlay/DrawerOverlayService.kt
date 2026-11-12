@@ -33,7 +33,13 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.savedstate.SavedStateRegistryController
+import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.homelessbrian.nuviocompanion.AppCatalog
 import com.homelessbrian.nuviocompanion.DrawerPosition
 import com.homelessbrian.nuviocompanion.DrawerSettings
@@ -78,9 +84,11 @@ object DrawerOverlayService {
                 DrawerPosition.CENTER -> Triple((service.resources.displayMetrics.widthPixels * .84f).toInt(), (service.resources.displayMetrics.heightPixels * .78f).toInt(), Gravity.CENTER)
             }
 
-            lifecycleOwner = OverlayLifecycleOwner()
+            lifecycleOwner = OverlayLifecycleOwner().also { it.attach() }
             composeView = ComposeView(service).apply {
                 setViewTreeLifecycleOwner(lifecycleOwner!!)
+                setViewTreeSavedStateRegistryOwner(lifecycleOwner!!)
+                setViewTreeViewModelStoreOwner(lifecycleOwner!!)
                 isFocusable = true
                 isFocusableInTouchMode = true
                 setOnKeyListener { _, keyCode, event ->
@@ -159,10 +167,35 @@ object DrawerOverlayService {
         }
     }
 
-    private class OverlayLifecycleOwner : LifecycleOwner {
+    private class OverlayLifecycleOwner : LifecycleOwner, SavedStateRegistryOwner, ViewModelStoreOwner {
         private val registry = LifecycleRegistry(this)
+        private val savedStateController = SavedStateRegistryController.create(this)
         override val lifecycle: Lifecycle get() = registry
-        fun start() { registry.currentState = Lifecycle.State.RESUMED }
-        fun destroy() { registry.currentState = Lifecycle.State.DESTROYED }
+        override val savedStateRegistry get() = savedStateController.savedStateRegistry
+        override val viewModelStore = ViewModelStore()
+
+        fun attach() {
+            savedStateController.performAttach()
+            savedStateController.performRestore(null)
+            registry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+        }
+
+        fun start() {
+            registry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+            registry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+        }
+
+        fun destroy() {
+            if (registry.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                registry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+            }
+            if (registry.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                registry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
+            }
+            if (registry.currentState != Lifecycle.State.DESTROYED) {
+                registry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+            }
+            viewModelStore.clear()
+        }
     }
 }
