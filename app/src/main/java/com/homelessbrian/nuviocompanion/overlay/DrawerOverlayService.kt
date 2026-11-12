@@ -1,12 +1,10 @@
 package com.homelessbrian.nuviocompanion.overlay
 
-import android.app.Service
-import android.content.Intent
+import android.accessibilityservice.AccessibilityService
+import android.content.Context
 import android.graphics.PixelFormat
-import android.os.IBinder
 import android.view.Gravity
 import android.view.KeyEvent
-import android.view.View
 import android.view.WindowManager
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -21,8 +19,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,72 +37,56 @@ import com.homelessbrian.nuviocompanion.AppCatalog
 import com.homelessbrian.nuviocompanion.DrawerPosition
 import com.homelessbrian.nuviocompanion.DrawerSettings
 
-class DrawerOverlayService : Service(), LifecycleOwner {
-    private val lifecycleRegistry by lazy { LifecycleRegistry(this) }
-    override val lifecycle: Lifecycle get() = lifecycleRegistry
-    private var view: ComposeView? = null
-    private var visible = false
-    private lateinit var windowManager: WindowManager
+/** Owns the system overlay from the AccessibilityService context, which is required for ACCESSIBILITY_OVERLAY. */
+object DrawerOverlayService {
+    private var root: ComposeView? = null
+    private var owner: OverlayLifecycleOwner? = null
+    private var windowManager: WindowManager? = null
 
-    override fun onCreate() {
-        super.onCreate()
-        lifecycleRegistry.currentState = Lifecycle.State.CREATED
-        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+    fun toggle(service: AccessibilityService) { if (root == null) open(service) else close() }
+    fun close() {
+        root?.let { runCatching { windowManager?.removeView(it) } }
+        owner?.destroy()
+        root = null; owner = null; windowManager = null
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_CLOSE) close() else if (visible) close() else open()
-        return START_NOT_STICKY
-    }
-
-    private fun open() {
-        if (!android.provider.Settings.canDrawOverlays(this) &&
-            !isAccessibilityOverlayAvailable()) return
-        val position = DrawerSettings.position(this)
+    private fun open(service: AccessibilityService) {
+        val wm = service.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val position = DrawerSettings.position(service)
         val (width, height, gravity) = when (position) {
-            DrawerPosition.TOP -> Triple(WindowManager.LayoutParams.MATCH_PARENT, (resources.displayMetrics.heightPixels * .34f).toInt(), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
-            DrawerPosition.BOTTOM -> Triple(WindowManager.LayoutParams.MATCH_PARENT, (resources.displayMetrics.heightPixels * .34f).toInt(), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
-            DrawerPosition.LEFT -> Triple((resources.displayMetrics.widthPixels * .38f).toInt(), WindowManager.LayoutParams.MATCH_PARENT, Gravity.START or Gravity.CENTER_VERTICAL)
-            DrawerPosition.RIGHT -> Triple((resources.displayMetrics.widthPixels * .38f).toInt(), WindowManager.LayoutParams.MATCH_PARENT, Gravity.END or Gravity.CENTER_VERTICAL)
-            DrawerPosition.CENTER -> Triple((resources.displayMetrics.widthPixels * .84f).toInt(), (resources.displayMetrics.heightPixels * .78f).toInt(), Gravity.CENTER)
+            DrawerPosition.TOP -> Triple(WindowManager.LayoutParams.MATCH_PARENT, (service.resources.displayMetrics.heightPixels * .36f).toInt(), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+            DrawerPosition.BOTTOM -> Triple(WindowManager.LayoutParams.MATCH_PARENT, (service.resources.displayMetrics.heightPixels * .36f).toInt(), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
+            DrawerPosition.LEFT -> Triple((service.resources.displayMetrics.widthPixels * .38f).toInt(), WindowManager.LayoutParams.MATCH_PARENT, Gravity.START or Gravity.CENTER_VERTICAL)
+            DrawerPosition.RIGHT -> Triple((service.resources.displayMetrics.widthPixels * .38f).toInt(), WindowManager.LayoutParams.MATCH_PARENT, Gravity.END or Gravity.CENTER_VERTICAL)
+            DrawerPosition.CENTER -> Triple((service.resources.displayMetrics.widthPixels * .84f).toInt(), (service.resources.displayMetrics.heightPixels * .78f).toInt(), Gravity.CENTER)
+        }
+        val lifecycleOwner = OverlayLifecycleOwner()
+        val composeView = ComposeView(service).apply {
+            ViewTreeLifecycleOwner.set(this, lifecycleOwner)
+            isFocusable = true; isFocusableInTouchMode = true
+            setOnKeyListener { _, keyCode, event ->
+                if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) { close(); true } else false
+            }
+            setContent { MaterialTheme { DrawerContent(service, onClose = ::close, onLaunch = { pkg -> AppCatalog.launch(service, pkg); close() }) } }
         }
         val params = WindowManager.LayoutParams(width, height, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_DIM_BEHIND,
             PixelFormat.TRANSLUCENT).apply { this.gravity = gravity; dimAmount = .22f }
-        val root = ComposeView(this).apply {
-            ViewTreeLifecycleOwner.set(this, this@DrawerOverlayService)
-            isFocusable = true
-            isFocusableInTouchMode = true
-            setOnKeyListener { _, keyCode, event ->
-                if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) { close(); true } else false
-            }
-            setContent { MaterialTheme { DrawerContent(onClose = ::close, onLaunch = { packageName -> AppCatalog.launch(this@DrawerOverlayService, packageName); close() }) } }
+        lifecycleOwner.start()
+        try {
+            wm.addView(composeView, params)
+            root = composeView; owner = lifecycleOwner; windowManager = wm
+            composeView.requestFocus()
+        } catch (_: SecurityException) {
+            lifecycleOwner.destroy()
+        } catch (_: RuntimeException) {
+            lifecycleOwner.destroy()
         }
-        view = root
-        lifecycleRegistry.currentState = Lifecycle.State.STARTED
-        runCatching { windowManager.addView(root, params); visible = true; root.requestFocus() }
-            .onFailure { view = null; stopSelf() }
     }
-
-    private fun isAccessibilityOverlayAvailable() = true
-
-    private fun close() {
-        view?.let { runCatching { windowManager.removeView(it) } }
-        view = null
-        visible = false
-        stopSelf()
-    }
-
-    override fun onDestroy() {
-        close()
-        lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
-        super.onDestroy()
-    }
-    override fun onBind(intent: Intent?): IBinder? = null
 
     @Composable
-    private fun DrawerContent(onClose: () -> Unit, onLaunch: (String) -> Unit) {
-        val apps = remember { AppCatalog.load(this) }
+    private fun DrawerContent(context: Context, onClose: () -> Unit, onLaunch: (String) -> Unit) {
+        val apps = remember { AppCatalog.load(context) }
         Surface(Modifier.fillMaxSize().padding(10.dp), shape = RoundedCornerShape(24.dp), color = Color(0xF2191E2A)) {
             Column(Modifier.fillMaxSize().padding(22.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
@@ -133,8 +113,10 @@ class DrawerOverlayService : Service(), LifecycleOwner {
         }
     }
 
-    companion object {
-        const val ACTION_TOGGLE = "com.homelessbrian.nuviocompanion.action.TOGGLE_DRAWER"
-        const val ACTION_CLOSE = "com.homelessbrian.nuviocompanion.action.CLOSE_DRAWER"
+    private class OverlayLifecycleOwner : LifecycleOwner {
+        private val registry = LifecycleRegistry(this)
+        override val lifecycle: Lifecycle get() = registry
+        fun start() { registry.currentState = Lifecycle.State.RESUMED }
+        fun destroy() { registry.currentState = Lifecycle.State.DESTROYED }
     }
 }

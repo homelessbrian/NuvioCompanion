@@ -12,9 +12,8 @@ import com.homelessbrian.nuviocompanion.overlay.DrawerOverlayService
 
 class RemoteKeyAccessibilityService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
-    private var pendingSingle: Runnable? = null
+    private var pendingDouble: Runnable? = null
     private var longPressFired = false
-    private var firstDownAt = 0L
     private val downKeys = mutableSetOf<Int>()
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
@@ -30,24 +29,24 @@ class RemoteKeyAccessibilityService : AccessibilityService() {
             }
             return false
         }
-
         val primary = DrawerSettings.keyCode(this)
         if (primary == 0) return false
         when (event.action) {
             KeyEvent.ACTION_DOWN -> {
                 downKeys.add(event.keyCode)
                 if (event.keyCode == primary && event.repeatCount == 0) {
-                    firstDownAt = event.eventTime
                     longPressFired = false
                     when (DrawerSettings.shortcutMode(this)) {
                         ShortcutMode.SINGLE -> trigger()
                         ShortcutMode.DOUBLE -> {
-                            pendingSingle?.let { handler.removeCallbacks(it); pendingSingle = null; trigger() }
-                                ?: run {
-                                    val task = Runnable { pendingSingle = null }
-                                    pendingSingle = task
-                                    handler.postDelayed(task, DOUBLE_PRESS_WINDOW)
-                                }
+                            val waiting = pendingDouble
+                            if (waiting != null) {
+                                handler.removeCallbacks(waiting); pendingDouble = null; trigger()
+                            } else {
+                                val task = Runnable { pendingDouble = null }
+                                pendingDouble = task
+                                handler.postDelayed(task, DOUBLE_PRESS_WINDOW)
+                            }
                         }
                         ShortcutMode.LONG -> handler.postDelayed({
                             if (primary in downKeys) { longPressFired = true; trigger() }
@@ -70,12 +69,9 @@ class RemoteKeyAccessibilityService : AccessibilityService() {
         return false
     }
 
-    private fun trigger() {
-        startService(Intent(this, DrawerOverlayService::class.java).setAction(DrawerOverlayService.ACTION_TOGGLE))
-    }
-    private fun resetGesture() { handler.removeCallbacksAndMessages(null); pendingSingle = null; downKeys.clear() }
-
-    override fun onDestroy() { resetGesture(); super.onDestroy() }
+    private fun trigger() = DrawerOverlayService.toggle(this)
+    private fun resetGesture() { handler.removeCallbacksAndMessages(null); pendingDouble = null; downKeys.clear() }
+    override fun onDestroy() { DrawerOverlayService.close(); resetGesture(); super.onDestroy() }
 
     companion object {
         const val ACTION_SHORTCUT_RECORDED = "com.homelessbrian.nuviocompanion.SHORTCUT_RECORDED"

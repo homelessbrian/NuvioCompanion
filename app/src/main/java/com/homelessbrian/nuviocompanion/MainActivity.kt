@@ -39,9 +39,24 @@ private val Accent = Color(0xFF8798FF)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme(colorScheme = darkColorScheme(primary = Accent, background = Ink, surface = Panel)) { CompanionSettings(::openAccessibilitySettings, ::requestHomeRole) } }
+        if (isHomeLaunch() && launchSelectedNuvio()) { finish(); return }
+        showSettings()
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (isHomeLaunch() && launchSelectedNuvio()) finish() else showSettings()
+    }
+
+    private fun isHomeLaunch() = intent?.categories?.contains(Intent.CATEGORY_HOME) == true
+    private fun launchSelectedNuvio(): Boolean {
+        val selected = DrawerSettings.selectedNuvio(this) ?: return false
+        return AppCatalog.launch(this, selected)
+    }
+    private fun showSettings() {
+        setContent { MaterialTheme(colorScheme = darkColorScheme(primary = Accent, background = Ink, surface = Panel)) { CompanionSettings(::openAccessibilitySettings, ::requestHomeRole) } }
+    }
     private fun openAccessibilitySettings() = startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
     private fun requestHomeRole() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -67,9 +82,7 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
 
     DisposableEffect(Unit) {
         val receiver = object : BroadcastReceiver() {
-            override fun onReceive(c: Context?, i: Intent?) {
-                keyCode = DrawerSettings.keyCode(context); recording = false
-            }
+            override fun onReceive(c: Context?, i: Intent?) { keyCode = DrawerSettings.keyCode(context); recording = false }
         }
         val filter = IntentFilter(RemoteKeyAccessibilityService.ACTION_SHORTCUT_RECORDED)
         if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED) else @Suppress("DEPRECATION") context.registerReceiver(receiver, filter)
@@ -113,7 +126,7 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
                             mode = option; DrawerSettings.setShortcutMode(context, option)
                         }
                     }
-                    if (mode == ShortcutMode.COMBINATION) Text("Combination recording is being prepared; use a single-key shortcut for now.", color = Muted)
+                    if (mode == ShortcutMode.COMBINATION) Text("Combination mode requires two separately recorded keys; that setup is not enabled in this build yet.", color = Muted)
                 }
             }
             item {
@@ -137,10 +150,7 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
                 Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Image(app.icon.toBitmap(72, 72).asImageBitmap(), app.label, Modifier.size(42.dp))
                     Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(app.label, color = Color.White, fontWeight = FontWeight.Medium)
-                        Text(app.packageName, color = Muted, fontSize = 11.sp)
-                    }
+                    Column(Modifier.weight(1f)) { Text(app.label, color = Color.White, fontWeight = FontWeight.Medium); Text(app.packageName, color = Muted, fontSize = 11.sp) }
                     TextButton(onClick = {
                         favorites = if (app.packageName in favorites) favorites - app.packageName else favorites + app.packageName
                         DrawerSettings.setFavorites(context, favorites)
@@ -164,13 +174,10 @@ private fun PanelCard(title: String, description: String, content: @Composable C
         content()
     }
 }
-
 @Composable
 private fun SelectableRow(label: String, selected: Boolean, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().background(if (selected) Color(0xFF29365A) else Color.Transparent, RoundedCornerShape(10.dp))
         .clickable(onClick = onClick).focusable().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        RadioButton(selected = selected, onClick = onClick)
-        Spacer(Modifier.width(10.dp))
-        Text(label, color = Color.White)
+        RadioButton(selected = selected, onClick = onClick); Spacer(Modifier.width(10.dp)); Text(label, color = Color.White)
     }
 }
