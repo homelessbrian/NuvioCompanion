@@ -384,7 +384,7 @@ object DrawerOverlayService {
                                                 editingIconFor = null
                                             }
                                         }
-                                        items(iconPackEntries, key = { it.component + it.drawableName }) { entry ->
+                                        columnItems(iconPackEntries, key = { it.component + it.drawableName }) { entry ->
                                             Row(
                                                 Modifier.fillMaxWidth().clickable {
                                                     DrawerSettings.setAppIconOverride(context, packageName, entry.drawableName)
