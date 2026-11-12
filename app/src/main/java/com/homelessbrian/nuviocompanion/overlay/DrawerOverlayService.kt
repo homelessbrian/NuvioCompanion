@@ -237,7 +237,8 @@ object DrawerOverlayService {
         val iconPackEntries = remember(selectedIconPack) { IconPackManager.entries(context, selectedIconPack) }
         var showingSettings by remember { mutableStateOf(false) }
         val settingsFocusRequester = remember { FocusRequester() }
-        LaunchedEffect(showingSettings) { if (showingSettings) { androidx.compose.runtime.withFrameNanos { }; settingsFocusRequester.requestFocus() } }
+        val drawerFocusRequester = remember { FocusRequester() }
+
         var hidden by remember { mutableStateOf(DrawerSettings.hidden(context)) }
         var favorites by remember { mutableStateOf(DrawerSettings.favorites(context)) }
         var position by remember { mutableStateOf(DrawerSettings.position(context)) }
@@ -250,6 +251,11 @@ object DrawerOverlayService {
         val visibleApps = allApps.filter { it.packageName !in hidden }
             .sortedWith(compareByDescending<com.homelessbrian.nuviocompanion.InstalledApp> { it.packageName in favorites }
                 .thenBy { it.label.lowercase() })
+        LaunchedEffect(showingSettings, visibleApps.size, position) {
+            androidx.compose.runtime.withFrameNanos { }
+            if (showingSettings) settingsFocusRequester.requestFocus()
+            else if (visibleApps.isNotEmpty()) drawerFocusRequester.requestFocus()
+        }
         val panel = Color(0xFF1A1A1A).copy(alpha = opacity)
         LaunchedEffect(showingSettings, position) {
             if (showingSettings) updateSettingsWindow(context) else updatePosition(context, position)
@@ -390,7 +396,7 @@ object DrawerOverlayService {
                                                     DrawerSettings.setAppIconOverride(context, packageName, entry.drawableName)
                                                     allApps = AppCatalog.load(context, true)
                                                     editingIconFor = null
-                                                }.padding(vertical = 7.dp, horizontal = 4.dp),
+                                                }.focusable().padding(vertical = 7.dp, horizontal = 4.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 val preview = remember(selectedIconPack, entry.drawableName) {
@@ -433,7 +439,7 @@ object DrawerOverlayService {
                         contentPadding = PaddingValues(6.dp)
                     ) {
                         items(visibleApps, key = { it.packageName }) { app ->
-                            CenterAppTile(app, showNames, showIcons, focusGlow) { onLaunch(app.packageName) }
+                            CenterAppTile(app, showNames, showIcons, focusGlow, if (app == visibleApps.firstOrNull()) Modifier.focusRequester(drawerFocusRequester) else Modifier) { onLaunch(app.packageName) }
                         }
                     }
                 }
@@ -451,7 +457,7 @@ object DrawerOverlayService {
                         contentPadding = PaddingValues(vertical = 4.dp)
                     ) {
                         columnItems(visibleApps, key = { it.packageName }) { app ->
-                            SideAppTile(app, showNames, showIcons, focusGlow) { onLaunch(app.packageName) }
+                            SideAppTile(app, showNames, showIcons, focusGlow, if (app == visibleApps.firstOrNull()) Modifier.focusRequester(drawerFocusRequester) else Modifier) { onLaunch(app.packageName) }
                         }
                     }
                     Spacer(Modifier.height(8.dp))
@@ -479,7 +485,7 @@ object DrawerOverlayService {
                         contentPadding = PaddingValues(vertical = 9.dp, horizontal = 4.dp)
                     ) {
                         rowItems(visibleApps, key = { it.packageName }) { app ->
-                            DockAppTile(app, showNames, showIcons, focusGlow) { onLaunch(app.packageName) }
+                            DockAppTile(app, showNames, showIcons, focusGlow, if (app == visibleApps.firstOrNull()) Modifier.focusRequester(drawerFocusRequester) else Modifier) { onLaunch(app.packageName) }
                         }
                     }
                 }
@@ -512,13 +518,14 @@ object DrawerOverlayService {
         showNames: Boolean,
         showIcons: Boolean,
         focusGlow: Boolean,
+        focusModifier: Modifier = Modifier,
         onClick: () -> Unit
     ) {
         var focused by remember(app.packageName) { mutableStateOf(false) }
         val scale by animateFloatAsState(if (focused) 1.07f else 1f, label = "dockFocus")
         val shape = RoundedCornerShape(17.dp)
         Column(
-            Modifier.width(104.dp).height(108.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+            focusModifier.width(104.dp).height(108.dp).graphicsLayer { scaleX = scale; scaleY = scale }
                 .onFocusChanged { focused = it.isFocused }
                 .then(if (focused && focusGlow) Modifier.background(Color.White.copy(alpha = 0.10f), shape).border(2.dp, Color.White, shape) else Modifier)
                 .clickable(onClick = onClick).focusable().padding(vertical = 4.dp, horizontal = 4.dp),
@@ -541,7 +548,7 @@ object DrawerOverlayService {
         var focused by remember(app.packageName) { mutableStateOf(false) }
         val shape = RoundedCornerShape(15.dp)
         Column(
-            Modifier.width(84.dp).height(88.dp).onFocusChanged { focused = it.isFocused }
+            focusModifier.width(84.dp).height(88.dp).onFocusChanged { focused = it.isFocused }
                 .then(if (focused && focusGlow) Modifier.background(Color.White.copy(alpha = 0.10f), shape).border(2.dp, Color.White, shape) else Modifier)
                 .clickable(onClick = onClick).focusable().padding(vertical = 4.dp, horizontal = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -563,7 +570,7 @@ object DrawerOverlayService {
         val scale by animateFloatAsState(if (focused) 1.06f else 1f, label = "gridFocus")
         val shape = RoundedCornerShape(17.dp)
         Column(
-            Modifier.fillMaxWidth().height(124.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+            focusModifier.fillMaxWidth().height(124.dp).graphicsLayer { scaleX = scale; scaleY = scale }
                 .onFocusChanged { focused = it.isFocused }
                 .then(if (focused && focusGlow) Modifier.background(Color.White.copy(alpha = 0.10f), shape).border(2.dp, Color.White, shape) else Modifier)
                 .clickable(onClick = onClick).focusable().padding(4.dp),
