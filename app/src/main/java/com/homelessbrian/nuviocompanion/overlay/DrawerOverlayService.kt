@@ -128,7 +128,7 @@ object DrawerOverlayService {
                 params.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             }
             DrawerPosition.LEFT -> {
-                params.width = (metrics.widthPixels * .075f).toInt()
+                params.width = (metrics.widthPixels * .085f).toInt()
                 params.height = (metrics.heightPixels * .82f).toInt()
                 params.gravity = Gravity.START or Gravity.CENTER_VERTICAL
             }
@@ -158,7 +158,7 @@ object DrawerOverlayService {
             val (width, height, gravity) = when (position) {
                 DrawerPosition.TOP -> Triple((service.resources.displayMetrics.widthPixels * .68f).toInt(), (service.resources.displayMetrics.heightPixels * .18f).toInt(), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
                 DrawerPosition.BOTTOM -> Triple((service.resources.displayMetrics.widthPixels * .68f).toInt(), (service.resources.displayMetrics.heightPixels * .18f).toInt(), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
-                DrawerPosition.LEFT -> Triple((service.resources.displayMetrics.widthPixels * .075f).toInt(), (service.resources.displayMetrics.heightPixels * .82f).toInt(), Gravity.START or Gravity.CENTER_VERTICAL)
+                DrawerPosition.LEFT -> Triple((service.resources.displayMetrics.widthPixels * .085f).toInt(), (service.resources.displayMetrics.heightPixels * .82f).toInt(), Gravity.START or Gravity.CENTER_VERTICAL)
                 DrawerPosition.RIGHT -> Triple((service.resources.displayMetrics.widthPixels * .15f).toInt(), (service.resources.displayMetrics.heightPixels * .88f).toInt(), Gravity.END or Gravity.CENTER_VERTICAL)
                 DrawerPosition.CENTER -> Triple((service.resources.displayMetrics.widthPixels * .72f).toInt(), (service.resources.displayMetrics.heightPixels * .68f).toInt(), Gravity.CENTER)
             }
@@ -471,7 +471,7 @@ object DrawerOverlayService {
         var focused by remember(app.packageName) { mutableStateOf(false) }
         val shape = RoundedCornerShape(15.dp)
         Column(
-            Modifier.width(74.dp).height(70.dp).onFocusChanged { focused = it.isFocused }
+            Modifier.width(52.dp).height(60.dp).onFocusChanged { focused = it.isFocused }
                 .shadow(if (focused && focusGlow) 22.dp else 5.dp, shape, clip = false)
                 .background(if (focused) Color(0xFF3B2B70) else Color(0xFF1B2639), shape)
                 .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFB58CFF), shape) else Modifier)
