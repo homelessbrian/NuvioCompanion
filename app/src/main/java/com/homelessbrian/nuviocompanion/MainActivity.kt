@@ -1,222 +1,126 @@
 package com.homelessbrian.nuviocompanion
 
+import android.app.role.RoleManager
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.graphics.drawable.Drawable
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.launch
-
-data class InstalledApp(
-    val label: String,
-    val packageName: String,
-    val icon: Drawable
-) {
-    val looksLikeNuvio: Boolean
-        get() = label.contains("nuvio", ignoreCase = true) ||
-            packageName.contains("nuvio", ignoreCase = true)
-}
+import com.homelessbrian.nuviocompanion.remote.RemoteKeyAccessibilityService
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            MaterialTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = Color(0xFF10131B)
-                ) {
-                    CompanionHome()
-                }
-            }
-        }
+        setContent { MaterialTheme { CompanionSettings(
+            onEnableAccessibility = { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
+            onSetLauncher = { requestLauncherRole() }
+        ) } }
+    }
+    private fun requestLauncherRole() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val roles = getSystemService(RoleManager::class.java)
+            if (roles.isRoleAvailable(RoleManager.ROLE_HOME) && !roles.isRoleHeld(RoleManager.ROLE_HOME))
+                startActivityForResult(roles.createRequestRoleIntent(RoleManager.ROLE_HOME), 410)
+        } else startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
     }
 }
 
-@androidx.compose.runtime.Composable
-private fun CompanionHome() {
-    val context = LocalContext.current
-    var apps by remember { mutableStateOf<List<InstalledApp>>(emptyList()) }
-    var selectedTab by remember { mutableStateOf("All apps") }
-    var loading by remember { mutableStateOf(true) }
-    val scope = rememberCoroutineScope()
-
-    suspend fun refresh() {
-        loading = true
-        apps = withContext(Dispatchers.IO) { discoverLaunchableApps(context.packageManager) }
-        loading = false
+@Composable
+private fun CompanionSettings(onEnableAccessibility: () -> Unit, onSetLauncher: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var refresh by remember { mutableIntStateOf(0) }
+    var recording by remember { mutableStateOf(DrawerSettings.isRecording(context)) }
+    var keyCode by remember { mutableIntStateOf(DrawerSettings.keyCode(context)) }
+    var position by remember { mutableStateOf(DrawerSettings.position(context)) }
+    var apps by remember { mutableStateOf(AppCatalog.load(context)) }
+    var hidden by remember { mutableStateOf(DrawerSettings.hidden(context)) }
+    DisposableEffect(Unit) {
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: android.content.Context?, i: Intent?) {
+                keyCode = DrawerSettings.keyCode(context); recording = false
+            }
+        }
+        val filter = android.content.IntentFilter(RemoteKeyAccessibilityService.ACTION_SHORTCUT_RECORDED)
+        if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(receiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+        else @Suppress("DEPRECATION") context.registerReceiver(receiver, filter)
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
     }
-
-    LaunchedEffect(Unit) { refresh() }
-
-    val visibleApps = when (selectedTab) {
-        "Nuvio forks" -> apps.filter { it.looksLikeNuvio }
-        else -> apps
-    }
-
-    Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 44.dp, vertical = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
+    LaunchedEffect(refresh) { apps = AppCatalog.load(context); hidden = DrawerSettings.hidden(context) }
+    BackHandler(enabled = recording) { DrawerSettings.setRecording(context, false); recording = false }
+    Surface(Modifier.fillMaxSize(), color = Color(0xFF10131B)) {
+        LazyColumn(Modifier.fillMaxSize().padding(horizontal = 44.dp, vertical = 28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            item {
                 Text("Nuvio Companion", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold)
-                Text("Standalone Android TV launcher companion", color = Color(0xFFADB5C8), fontSize = 14.sp)
+                Text("App drawer and remote controls", color = Color(0xFFADB5C8))
             }
-            Text("EARLY PROTOTYPE", color = Color(0xFF9EACFF), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            listOf("All apps", "Nuvio forks").forEach { tab ->
-                Button(onClick = { selectedTab = tab }) { Text(tab) }
+            item { SettingsCard("Set as device launcher", "Make Nuvio Companion the Android TV Home app.") { Button(onClick = onSetLauncher) { Text("Set as launcher") } } }
+            item {
+                SettingsCard("Remote shortcut", "Enable the accessibility service, then record a button from your remote.") {
+                    Text(if (keyCode == 0) "No shortcut configured" else "Configured key: $keyCode", color = Color.White)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Button(onClick = onEnableAccessibility) { Text("Accessibility settings") }
+                        Button(onClick = { DrawerSettings.setRecording(context, true); recording = true }) { Text(if (recording) "Listening…" else "Record remote button") }
+                    }
+                    if (recording) Text("Press the remote button you want to use.", color = Color(0xFF9EACFF))
+                }
             }
-            Button(onClick = { scope.launch { refresh() } }) {
-                Text("Refresh list")
+            item {
+                Text("Drawer position", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                Text("All five positions are available.", color = Color(0xFFADB5C8))
             }
-        }
-
-        Text(
-            if (selectedTab == "Nuvio forks") "Detected Nuvio applications" else "Installed launchable applications",
-            color = Color.White,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-
-        when {
-            loading -> Text("Scanning installed apps…", color = Color.White)
-            visibleApps.isEmpty() -> Text(
-                if (selectedTab == "Nuvio forks") "No Nuvio-labelled apps were detected." else "No launchable apps were detected.",
-                color = Color(0xFFADB5C8)
-            )
-            else -> LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 150.dp),
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                items(visibleApps, key = { it.packageName }) { app ->
-                    Card(
-                        onClick = {
-                            val launch = context.packageManager.getLaunchIntentForPackage(app.packageName)
-                            if (launch != null) {
-                                context.startActivity(launch)
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth().height(142.dp).focusable(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF202635))
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxSize().padding(14.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Image(
-                                bitmap = remember(app.packageName) {
-                                    app.icon.toBitmap(88, 88).asImageBitmap()
-                                },
-                                contentDescription = app.label,
-                                modifier = Modifier.size(58.dp)
-                            )
-                            Spacer(Modifier.height(10.dp))
-                            Text(
-                                app.label,
-                                color = Color.White,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1
-                            )
-                            if (app.looksLikeNuvio) {
-                                Text("Nuvio fork", color = Color(0xFF9EACFF), fontSize = 11.sp)
-                            }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("BOTTOM" to "Bottom", "TOP" to "Top", "LEFT" to "Left", "RIGHT" to "Right", "CENTER" to "Center").forEach { (value, label) ->
+                        Row(Modifier.fillMaxWidth().background(if (position == value) Color(0xFF263B68) else Color(0xFF202635), RoundedCornerShape(12.dp)).clickable { position = value; DrawerSettings.setPosition(context, value) }.focusable().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = position == value, onClick = { position = value; DrawerSettings.setPosition(context, value) })
+                            Spacer(Modifier.width(8.dp)); Text(label, color = Color.White)
                         }
                     }
                 }
             }
-        }
-    }
-}
-
-private fun discoverLaunchableApps(packageManager: PackageManager): List<InstalledApp> {
-    val intents = listOf(
-        Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER),
-        Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-    )
-    val found = linkedMapOf<String, InstalledApp>()
-
-    intents.forEach { intent ->
-        val matches = if (Build.VERSION.SDK_INT >= 33) {
-            packageManager.queryIntentActivities(
-                intent,
-                PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong())
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            packageManager.queryIntentActivities(intent, PackageManager.MATCH_ALL)
-        }
-
-        matches.forEach { resolveInfo ->
-            val activityInfo = resolveInfo.activityInfo ?: return@forEach
-            val packageName = activityInfo.packageName
-            if (packageName == "com.homelessbrian.nuviocompanion" ||
-                packageName == "com.homelessbrian.nuviocompanion.debug"
-            ) return@forEach
-
-            if (!found.containsKey(packageName)) {
-                found[packageName] = InstalledApp(
-                    label = resolveInfo.loadLabel(packageManager)?.toString() ?: packageName,
-                    packageName = packageName,
-                    icon = resolveInfo.loadIcon(packageManager)
-                )
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column { Text("Apps in drawer", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold); Text("Choose which installed apps appear.", color = Color(0xFFADB5C8)) }
+                    Button(onClick = { refresh++ }) { Text("Refresh") }
+                }
+            }
+            items(apps, key = { it.packageName }) { app ->
+                Row(Modifier.fillMaxWidth().background(Color(0xFF202635), RoundedCornerShape(12.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Image(app.icon.toBitmap(72, 72).asImageBitmap(), app.label, Modifier.size(42.dp))
+                    Spacer(Modifier.width(14.dp)); Text(app.label, color = Color.White, modifier = Modifier.weight(1f))
+                    Switch(checked = app.packageName !in hidden, onCheckedChange = { show ->
+                        hidden = if (show) hidden - app.packageName else hidden + app.packageName
+                        DrawerSettings.setHidden(context, hidden)
+                    })
+                }
             }
         }
     }
-
-    return found.values.sortedBy { it.label.lowercase() }
+}
+@Composable
+private fun SettingsCard(title: String, description: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().background(Color(0xFF202635), RoundedCornerShape(16.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(title, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+        Text(description, color = Color(0xFFADB5C8), fontSize = 13.sp); content()
+    }
 }

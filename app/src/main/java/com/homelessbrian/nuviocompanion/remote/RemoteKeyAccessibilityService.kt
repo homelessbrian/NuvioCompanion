@@ -1,24 +1,33 @@
 package com.homelessbrian.nuviocompanion.remote
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Intent
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
+import com.homelessbrian.nuviocompanion.DrawerSettings
+import com.homelessbrian.nuviocompanion.overlay.DrawerOverlayService
 
-/**
- * Initial key-event research scaffold.
- *
- * Android only delivers hardware key events here when the user explicitly enables this
- * accessibility service and the device/remote exposes the event to Android's input pipeline.
- * Combination recording, conflict handling and drawer activation are intentionally not wired yet.
- */
 class RemoteKeyAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
-
     override fun onInterrupt() = Unit
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
-        // Returning false lets the key continue to the foreground application.
-        // A future shortcut engine will consume only a user-configured matching sequence.
+        if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0) return false
+        if (DrawerSettings.isRecording(this)) {
+            DrawerSettings.setKeyCode(this, event.keyCode)
+            DrawerSettings.setRecording(this, false)
+            sendBroadcast(Intent(ACTION_SHORTCUT_RECORDED).setPackage(packageName))
+            return true
+        }
+        val configured = DrawerSettings.keyCode(this)
+        if (configured != 0 && event.keyCode == configured) {
+            startService(Intent(this, DrawerOverlayService::class.java).setAction(DrawerOverlayService.ACTION_TOGGLE))
+            return true
+        }
         return false
+    }
+
+    companion object {
+        const val ACTION_SHORTCUT_RECORDED = "com.homelessbrian.nuviocompanion.SHORTCUT_RECORDED"
     }
 }
