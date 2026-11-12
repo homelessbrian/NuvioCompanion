@@ -253,7 +253,7 @@ object DrawerOverlayService {
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            rowItems(visibleApps, key = { it.packageName }) { app ->
+                            items(visibleApps, key = { it.packageName }) { app ->
                                 DrawerAppTile(app, tile, accent, compact = false) { onLaunch(app.packageName) }
                             }
                         }
@@ -263,7 +263,7 @@ object DrawerOverlayService {
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            items(visibleApps, key = { it.packageName }) { app ->
+                            rowItems(visibleApps, key = { it.packageName }) { app ->
                                 DrawerAppTile(app, tile, accent, compact = false) { onLaunch(app.packageName) }
                             }
                         }
