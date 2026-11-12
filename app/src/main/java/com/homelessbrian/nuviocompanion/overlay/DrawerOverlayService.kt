@@ -16,6 +16,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items as rowItems
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -118,7 +119,7 @@ object DrawerOverlayService {
                         DrawerContent(
                             service,
                             onClose = ::close,
-                            onLaunch = { pkg -> AppCatalog.launch(service, pkg); close() }
+                            onLaunch = { pkg -> if (AppCatalog.launch(service, pkg)) close() else report(service, "Could not open this app. It may no longer be installed.") }
                         )
                     }
                 }
@@ -252,7 +253,7 @@ object DrawerOverlayService {
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            items(visibleApps, key = { it.packageName }) { app ->
+                            rowItems(visibleApps, key = { it.packageName }) { app ->
                                 DrawerAppTile(app, tile, accent, compact = false) { onLaunch(app.packageName) }
                             }
                         }
