@@ -88,7 +88,7 @@ object IconPackManager {
         if (packPackage.isNullOrBlank()) return null
         return runCatching {
             val packContext = context.createPackageContext(packPackage, Context.CONTEXT_IGNORE_SECURITY)
-            val drawableName = overrideName ?: entries(context, packPackage)
+            val drawableName = overrideName ?: appMappings(context, packPackage)
                 .firstOrNull { it.component.startsWith("ComponentInfo{$appPackage/") }?.drawableName
                 ?: return@runCatching null
             drawable(packContext, packPackage, drawableName)
@@ -110,6 +110,17 @@ object IconPackManager {
                 ?: return@runCatching null
             packContext.getDrawable(id)
         }.getOrNull()
+
+    private fun appMappings(context: Context, packPackage: String): List<IconPackEntry> =
+        runCatching {
+            val packContext = context.createPackageContext(packPackage, Context.CONTEXT_IGNORE_SECURITY)
+            runCatching {
+                packContext.assets.open("appfilter.xml").use(::readEntries)
+            }.getOrNull() ?: runCatching {
+                val xmlId = packContext.resources.getIdentifier("appfilter", "xml", packPackage)
+                if (xmlId == 0) emptyList() else packContext.resources.getXml(xmlId).use(::readEntries)
+            }.getOrNull().orEmpty()
+        }.getOrDefault(emptyList())
 
     private fun readEntries(input: InputStream): List<IconPackEntry> {
         val parser = Xml.newPullParser()
