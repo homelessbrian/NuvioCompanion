@@ -16,8 +16,35 @@ android {
         versionName = "0.2.0"
     }
 
+    val companionSigningStore = System.getenv("COMPANION_SIGNING_STORE")
+    val companionSigningPassword = System.getenv("COMPANION_SIGNING_PASSWORD")
+    val companionSigningAlias = System.getenv("COMPANION_SIGNING_ALIAS")
+    val companionSigningKeyPassword = System.getenv("COMPANION_SIGNING_KEY_PASSWORD")
+
+    if (
+        !companionSigningStore.isNullOrBlank() &&
+        !companionSigningPassword.isNullOrBlank() &&
+        !companionSigningAlias.isNullOrBlank() &&
+        !companionSigningKeyPassword.isNullOrBlank()
+    ) {
+        signingConfigs.create("companionPersistent") {
+            storeFile = file(companionSigningStore)
+            storePassword = companionSigningPassword
+            keyAlias = companionSigningAlias
+            keyPassword = companionSigningKeyPassword
+        }
+    }
+
     buildTypes {
-        debug { applicationIdSuffix = ".debug"; versionNameSuffix = "-debug" }
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            signingConfig = if (signingConfigs.findByName("companionPersistent") != null) {
+                signingConfigs.getByName("companionPersistent")
+            } else {
+                signingConfigs.getByName("debug")
+            }
+        }
         release {
             signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
