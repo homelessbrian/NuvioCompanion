@@ -249,7 +249,6 @@ object DrawerOverlayService {
         LaunchedEffect(showingSettings, position) {
             if (showingSettings) updateSettingsWindow(context) else updatePosition(context, position)
         }
-        val tile = Color(0xFF222222)
         val accent = Color(0xFFF5F5F5)
 
         Surface(
@@ -339,7 +338,7 @@ object DrawerOverlayService {
                     }
                     columnItems(allApps, key = { it.packageName }) { app ->
                         Row(
-                            Modifier.fillMaxWidth().background(tile, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 7.dp),
+                            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 7.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Image(app.icon.toBitmap(96, 96).asImageBitmap(), app.label, Modifier.size(46.dp))
@@ -467,16 +466,14 @@ object DrawerOverlayService {
         val scale by animateFloatAsState(if (focused) 1.07f else 1f, label = "dockFocus")
         val shape = RoundedCornerShape(17.dp)
         Column(
-            Modifier.width(78.dp).height(86.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+            Modifier.width(88.dp).height(84.dp).graphicsLayer { scaleX = scale; scaleY = scale }
                 .onFocusChanged { focused = it.isFocused }
-                .shadow(if (focused && focusGlow) 22.dp else 5.dp, shape, clip = false)
-                .background(if (focused) Color(0xFF303030) else Color.Transparent, shape)
-                .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFFFFFFF), shape) else Modifier)
+                .then(if (focused && focusGlow) Modifier.background(Color.White.copy(alpha = 0.10f), shape).border(2.dp, Color.White, shape) else Modifier)
                 .clickable(onClick = onClick).focusable().padding(vertical = 8.dp, horizontal = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(64.dp))
+            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(76.dp))
             if (showNames) Text(app.label, color = Color.White, fontSize = 9.sp, maxLines = 1, modifier = Modifier.padding(top = 4.dp))
         }
     }
@@ -492,14 +489,12 @@ object DrawerOverlayService {
         var focused by remember(app.packageName) { mutableStateOf(false) }
         val shape = RoundedCornerShape(15.dp)
         Column(
-            Modifier.width(60.dp).height(68.dp).onFocusChanged { focused = it.isFocused }
-                .shadow(if (focused && focusGlow) 22.dp else 5.dp, shape, clip = false)
-                .background(if (focused) Color(0xFF303030) else Color.Transparent, shape)
-                .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFFFFFFF), shape) else Modifier)
+            Modifier.width(64.dp).height(68.dp).onFocusChanged { focused = it.isFocused }
+                .then(if (focused && focusGlow) Modifier.background(Color.White.copy(alpha = 0.10f), shape).border(2.dp, Color.White, shape) else Modifier)
                 .clickable(onClick = onClick).focusable().padding(vertical = 8.dp, horizontal = 5.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (showIcons) Image(app.icon.toBitmap(112, 112).asImageBitmap(), app.label, Modifier.size(48.dp))
+            if (showIcons) Image(app.icon.toBitmap(112, 112).asImageBitmap(), app.label, Modifier.size(58.dp))
             if (showNames) Text(app.label, color = Color.White, fontSize = 9.sp, maxLines = 1)
         }
     }
@@ -516,16 +511,14 @@ object DrawerOverlayService {
         val scale by animateFloatAsState(if (focused) 1.06f else 1f, label = "gridFocus")
         val shape = RoundedCornerShape(17.dp)
         Column(
-            Modifier.fillMaxWidth().height(96.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+            Modifier.fillMaxWidth().height(112.dp).graphicsLayer { scaleX = scale; scaleY = scale }
                 .onFocusChanged { focused = it.isFocused }
-                .shadow(if (focused && focusGlow) 22.dp else 5.dp, shape, clip = false)
-                .background(if (focused) Color(0xFF303030) else Color.Transparent, shape)
-                .then(if (focused && focusGlow) Modifier.border(2.dp, Color(0xFFFFFFFF), shape) else Modifier)
+                .then(if (focused && focusGlow) Modifier.background(Color.White.copy(alpha = 0.10f), shape).border(2.dp, Color.White, shape) else Modifier)
                 .clickable(onClick = onClick).focusable().padding(9.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(66.dp))
+            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(82.dp))
             if (showNames) Text(app.label, color = Color.White, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(top = 7.dp))
         }
     }
