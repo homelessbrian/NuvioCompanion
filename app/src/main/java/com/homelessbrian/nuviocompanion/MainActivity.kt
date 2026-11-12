@@ -33,10 +33,10 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.homelessbrian.nuviocompanion.remote.RemoteKeyAccessibilityService
 
-private val Ink = Color(0xFF0D111B)
-private val Panel = Color(0xFF1A2232)
-private val Muted = Color(0xFF9BA9C2)
-private val Accent = Color(0xFF8798FF)
+private val Ink = Color(0xFF0D0D0D)
+private val Panel = Color(0xFF1A1A1A)
+private val Muted = Color(0xFFB3B3B3)
+private val Accent = Color(0xFFF5F5F5)
 
 class MainActivity : ComponentActivity() {
     private val homeRedirectPrefs by lazy { getSharedPreferences("companion_home_state", MODE_PRIVATE) }
@@ -162,10 +162,10 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
         recording = false
     }
 
-    val bg = Color(0xFF090E19)
-    val panel = Color(0xFF141E30)
-    val panel2 = Color(0xFF1B2940)
-    val accent = Color(0xFF9585FF)
+    val bg = Color(0xFF0D0D0D)
+    val panel = Color(0xFF1A1A1A)
+    val panel2 = Color(0xFF222222)
+    val accent = Color(0xFFF5F5F5)
     val muted = Color(0xFF9EABC3)
 
     Surface(Modifier.fillMaxSize(), color = bg) {
@@ -191,7 +191,7 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
                         Text("1. ENABLE ACCESSIBILITY", color = muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         Text(
                             if (accessibilityEnabled) "Remote access is enabled" else "Required before you can record a remote button",
-                            color = if (accessibilityEnabled) Color(0xFF8FE0B2) else Color(0xFFFFC47A),
+                            color = if (accessibilityEnabled) Color(0xFF4CAF50) else Color(0xFFFFB74D),
                             fontSize = 11.sp
                         )
                         OutlinedButton(onClick = onAccessibility) {
@@ -205,7 +205,7 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
                                     when (option) { ShortcutMode.SINGLE -> "Single"; ShortcutMode.DOUBLE -> "Double"; ShortcutMode.LONG -> "Long"; ShortcutMode.COMBINATION -> "Combo" },
                                     color = if (mode == option) Color.White else muted,
                                     fontSize = 10.sp,
-                                    modifier = Modifier.background(if (mode == option) Color(0xFF51449B) else panel2, RoundedCornerShape(8.dp))
+                                    modifier = Modifier.background(if (mode == option) Color(0xFF2D2D2D) else panel2, RoundedCornerShape(8.dp))
                                         .clickable { mode = option; DrawerSettings.setShortcutMode(context, option) }
                                         .focusable().padding(horizontal = 9.dp, vertical = 9.dp)
                                 )
@@ -224,7 +224,7 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
                                 onClick = { DrawerSettings.setRecordingTarget(context, "secondary"); DrawerSettings.setRecording(context, true); recording = true }
                             ) { Text("Record second button") }
                         }
-                        Text(inputStatus, color = Color(0xFFB9C5DA), fontSize = 11.sp)
+                        Text(inputStatus, color = Color(0xFFB3B3B3), fontSize = 11.sp)
                         Text("Some device firmware intercepts remote keys before Android accessibility can receive them.", color = muted, fontSize = 10.sp)
                     }
 
@@ -291,7 +291,7 @@ private fun isCompanionAccessibilityEnabled(context: Context): Boolean {
 
 @Composable
 private fun SelectableRow(label: String, selected: Boolean, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().background(if (selected) Color(0xFF29365A) else Color.Transparent, RoundedCornerShape(10.dp)).clickable(onClick = onClick).focusable().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().background(if (selected) Color(0xFF303030) else Color.Transparent, RoundedCornerShape(10.dp)).clickable(onClick = onClick).focusable().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
         RadioButton(selected = selected, onClick = onClick); Spacer(Modifier.width(10.dp)); Text(label, color = Color.White)
     }
 }
