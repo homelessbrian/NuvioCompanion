@@ -45,6 +45,10 @@ object IconPackManager {
     private fun findDrawableName(input: InputStream, appPackage: String): String? {
         val parser = Xml.newPullParser()
         parser.setInput(input, "UTF-8")
+        return findDrawableName(parser, appPackage)
+    }
+
+    private fun findDrawableName(parser: XmlPullParser, appPackage: String): String? {
         var event = parser.eventType
         while (event != XmlPullParser.END_DOCUMENT) {
             if (event == XmlPullParser.START_TAG && parser.name == "item") {
