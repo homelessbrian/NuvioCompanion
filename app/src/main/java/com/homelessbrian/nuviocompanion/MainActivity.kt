@@ -1,7 +1,6 @@
 package com.homelessbrian.nuviocompanion
 
 import android.app.role.RoleManager
-import android.widget.Toast
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -87,44 +86,19 @@ class MainActivity : ComponentActivity() {
     private fun requestHomeRole() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val roles = getSystemService(RoleManager::class.java)
-            if (roles != null && roles.isRoleAvailable(RoleManager.ROLE_HOME)) {
+            if (roles != null && roles.isRoleAvailable(RoleManager.ROLE_HOME) && !roles.isRoleHeld(RoleManager.ROLE_HOME)) {
                 try {
-                    startActivityForResult(roles.createRequestRoleIntent(RoleManager.ROLE_HOME), REQUEST_HOME_ROLE)
+                    startActivity(roles.createRequestRoleIntent(RoleManager.ROLE_HOME))
                     return
                 } catch (_: Exception) { }
+            } else if (roles?.isRoleHeld(RoleManager.ROLE_HOME) == true) {
+                return
             }
         }
-        val candidates = listOf(
-            Settings.ACTION_HOME_SETTINGS,
-            Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS,
-            "android.settings.HOME_SETTINGS",
-            Settings.ACTION_SETTINGS
-        ).distinct()
-        for (action in candidates) {
-            val intent = Intent(action)
-            if (intent.resolveActivity(packageManager) != null) {
-                try {
-                    startActivity(intent)
-                    return
-                } catch (_: Exception) { }
-            }
+        val candidates = listOf(Settings.ACTION_HOME_SETTINGS, Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS, Settings.ACTION_SETTINGS)
+        candidates.firstOrNull { Intent(it).resolveActivity(packageManager) != null }?.let { action ->
+            runCatching { startActivity(Intent(action)) }
         }
-        Toast.makeText(this, "This device does not expose Home launcher settings. Open Android Settings → Apps → Default apps → Home app.", Toast.LENGTH_LONG).show()
-    }
-
-    @Deprecated("Legacy result callback retained for Android TV role picker compatibility")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_HOME_ROLE) {
-            val message = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-                getSystemService(RoleManager::class.java)?.isRoleHeld(RoleManager.ROLE_HOME) == true
-            ) "Nuvio Companion is now your Home app." else "Home app was not changed."
-            Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-        }
-    }
-
-    companion object {
-        private const val REQUEST_HOME_ROLE = 4201
     }
 }
 
