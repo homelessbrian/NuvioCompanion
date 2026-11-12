@@ -51,6 +51,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -123,21 +124,21 @@ object DrawerOverlayService {
         when (position) {
             DrawerPosition.TOP -> {
                 params.width = (metrics.widthPixels * .68f).toInt()
-                params.height = (metrics.heightPixels * .18f).toInt()
+                params.height = (metrics.heightPixels * .25f).toInt()
                 params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             }
             DrawerPosition.BOTTOM -> {
                 params.width = (metrics.widthPixels * .68f).toInt()
-                params.height = (metrics.heightPixels * .18f).toInt()
+                params.height = (metrics.heightPixels * .25f).toInt()
                 params.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             }
             DrawerPosition.LEFT -> {
-                params.width = (metrics.widthPixels * .085f).toInt()
+                params.width = (metrics.widthPixels * .13f).toInt()
                 params.height = (metrics.heightPixels * .82f).toInt()
                 params.gravity = Gravity.START or Gravity.CENTER_VERTICAL
             }
             DrawerPosition.RIGHT -> {
-                params.width = (metrics.widthPixels * .085f).toInt()
+                params.width = (metrics.widthPixels * .13f).toInt()
                 params.height = (metrics.heightPixels * .82f).toInt()
                 params.gravity = Gravity.END or Gravity.CENTER_VERTICAL
             }
@@ -160,10 +161,10 @@ object DrawerOverlayService {
             wm = service.getSystemService(Context.WINDOW_SERVICE) as WindowManager
             val position = DrawerSettings.position(service)
             val (width, height, gravity) = when (position) {
-                DrawerPosition.TOP -> Triple((service.resources.displayMetrics.widthPixels * .68f).toInt(), (service.resources.displayMetrics.heightPixels * .18f).toInt(), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
-                DrawerPosition.BOTTOM -> Triple((service.resources.displayMetrics.widthPixels * .68f).toInt(), (service.resources.displayMetrics.heightPixels * .18f).toInt(), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
-                DrawerPosition.LEFT -> Triple((service.resources.displayMetrics.widthPixels * .085f).toInt(), (service.resources.displayMetrics.heightPixels * .82f).toInt(), Gravity.START or Gravity.CENTER_VERTICAL)
-                DrawerPosition.RIGHT -> Triple((service.resources.displayMetrics.widthPixels * .085f).toInt(), (service.resources.displayMetrics.heightPixels * .82f).toInt(), Gravity.END or Gravity.CENTER_VERTICAL)
+                DrawerPosition.TOP -> Triple((service.resources.displayMetrics.widthPixels * .68f).toInt(), (service.resources.displayMetrics.heightPixels * .25f).toInt(), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+                DrawerPosition.BOTTOM -> Triple((service.resources.displayMetrics.widthPixels * .68f).toInt(), (service.resources.displayMetrics.heightPixels * .25f).toInt(), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
+                DrawerPosition.LEFT -> Triple((service.resources.displayMetrics.widthPixels * .13f).toInt(), (service.resources.displayMetrics.heightPixels * .82f).toInt(), Gravity.START or Gravity.CENTER_VERTICAL)
+                DrawerPosition.RIGHT -> Triple((service.resources.displayMetrics.widthPixels * .13f).toInt(), (service.resources.displayMetrics.heightPixels * .82f).toInt(), Gravity.END or Gravity.CENTER_VERTICAL)
                 DrawerPosition.CENTER -> Triple((service.resources.displayMetrics.widthPixels * .72f).toInt(), (service.resources.displayMetrics.heightPixels * .68f).toInt(), Gravity.CENTER)
             }
 
@@ -466,14 +467,14 @@ object DrawerOverlayService {
         val scale by animateFloatAsState(if (focused) 1.07f else 1f, label = "dockFocus")
         val shape = RoundedCornerShape(17.dp)
         Column(
-            Modifier.width(88.dp).height(84.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+            Modifier.width(104.dp).height(108.dp).graphicsLayer { scaleX = scale; scaleY = scale }
                 .onFocusChanged { focused = it.isFocused }
                 .then(if (focused && focusGlow) Modifier.background(Color.White.copy(alpha = 0.10f), shape).border(2.dp, Color.White, shape) else Modifier)
-                .clickable(onClick = onClick).focusable().padding(vertical = 8.dp, horizontal = 6.dp),
+                .clickable(onClick = onClick).focusable().padding(vertical = 4.dp, horizontal = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(76.dp))
+            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(88.dp), contentScale = ContentScale.FillBounds)
             if (showNames) Text(app.label, color = Color.White, fontSize = 9.sp, maxLines = 1, modifier = Modifier.padding(top = 4.dp))
         }
     }
@@ -489,12 +490,12 @@ object DrawerOverlayService {
         var focused by remember(app.packageName) { mutableStateOf(false) }
         val shape = RoundedCornerShape(15.dp)
         Column(
-            Modifier.width(64.dp).height(68.dp).onFocusChanged { focused = it.isFocused }
+            Modifier.width(84.dp).height(88.dp).onFocusChanged { focused = it.isFocused }
                 .then(if (focused && focusGlow) Modifier.background(Color.White.copy(alpha = 0.10f), shape).border(2.dp, Color.White, shape) else Modifier)
-                .clickable(onClick = onClick).focusable().padding(vertical = 8.dp, horizontal = 5.dp),
+                .clickable(onClick = onClick).focusable().padding(vertical = 4.dp, horizontal = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (showIcons) Image(app.icon.toBitmap(112, 112).asImageBitmap(), app.label, Modifier.size(58.dp))
+            if (showIcons) Image(app.icon.toBitmap(112, 112).asImageBitmap(), app.label, Modifier.size(68.dp), contentScale = ContentScale.FillBounds)
             if (showNames) Text(app.label, color = Color.White, fontSize = 9.sp, maxLines = 1)
         }
     }
@@ -511,14 +512,14 @@ object DrawerOverlayService {
         val scale by animateFloatAsState(if (focused) 1.06f else 1f, label = "gridFocus")
         val shape = RoundedCornerShape(17.dp)
         Column(
-            Modifier.fillMaxWidth().height(112.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+            Modifier.fillMaxWidth().height(124.dp).graphicsLayer { scaleX = scale; scaleY = scale }
                 .onFocusChanged { focused = it.isFocused }
                 .then(if (focused && focusGlow) Modifier.background(Color.White.copy(alpha = 0.10f), shape).border(2.dp, Color.White, shape) else Modifier)
-                .clickable(onClick = onClick).focusable().padding(9.dp),
+                .clickable(onClick = onClick).focusable().padding(4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(82.dp))
+            if (showIcons) Image(app.icon.toBitmap(128, 128).asImageBitmap(), app.label, Modifier.size(92.dp), contentScale = ContentScale.FillBounds)
             if (showNames) Text(app.label, color = Color.White, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(top = 7.dp))
         }
     }
