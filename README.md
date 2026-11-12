@@ -28,6 +28,18 @@ The current build is an implementation milestone, not a claim of device-wide com
 
 The project uses Gradle, Android Gradle Plugin, Kotlin, and Jetpack Compose. Builds are manual only: commits and pull requests do not start GitHub Actions builds. Use **Actions → Build and Test → Run workflow** for a compile/test run, or **Actions → Build Debug APK → Run workflow** to publish a test APK from the selected branch. The workflow dispatch ref is the source revision that gets built.
 
+## Stable APK download
+
+The manually dispatched **Build Release Variant** workflow publishes the latest release-variant APK to the same path each time:
+
+`https://raw.githubusercontent.com/homelessbrian/NuvioCompanion/main/downloads/NuvioCompanion.apk`
+
+Checksum for the current APK:
+
+`https://raw.githubusercontent.com/homelessbrian/NuvioCompanion/main/downloads/NuvioCompanion.apk.sha256`
+
+The APK is committed to `main` by the manual workflow; normal commits do not trigger builds. Run the workflow from the `main` branch and enter `BUILD` when prompted.
+
 ## Release signing
 
-The current release variant is prototype-only and uses the debug signing configuration. A production release must use a private signing key managed outside the repository.
+The current release variant is prototype-only and uses the debug signing configuration. A production release must use a persistent private signing key managed outside the repository. Until that key is configured, do not rely on APK updates over an already-installed copy across separate GitHub-hosted builds.
