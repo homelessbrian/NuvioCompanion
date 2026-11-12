@@ -28,6 +28,17 @@ object DrawerSettings {
     fun setOrder(context: Context, value: List<String>) { prefs(context).edit().putString("app_order", value.joinToString("|")).apply() }
     fun iconPack(context: Context) = prefs(context).getString("icon_pack", null)
     fun setIconPack(context: Context, value: String?) { prefs(context).edit().putString("icon_pack", value).apply() }
+    fun appIconOverrides(context: Context): Map<String, String> =
+        prefs(context).getStringSet("app_icon_overrides", emptySet())?.mapNotNull { entry ->
+            val split = entry.split("=", limit = 2)
+            if (split.size == 2) split[0] to split[1] else null
+        }?.toMap() ?: emptyMap()
+    fun appIconOverride(context: Context, packageName: String): String? = appIconOverrides(context)[packageName]
+    fun setAppIconOverride(context: Context, packageName: String, drawableName: String?) {
+        val updated = appIconOverrides(context).toMutableMap()
+        if (drawableName.isNullOrBlank()) updated.remove(packageName) else updated[packageName] = drawableName
+        prefs(context).edit().putStringSet("app_icon_overrides", updated.map { "${it.key}=${it.value}" }.toSet()).apply()
+    }
     fun selectedNuvio(context: Context) = prefs(context).getString("selected_nuvio", null)
     fun setSelectedNuvio(context: Context, value: String?) { prefs(context).edit().putString("selected_nuvio", value).apply() }
     fun showNames(context: Context) = prefs(context).getBoolean("drawer_show_names", false)
