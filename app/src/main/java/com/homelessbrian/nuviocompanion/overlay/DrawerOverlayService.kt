@@ -28,6 +28,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -94,6 +95,17 @@ object DrawerOverlayService {
         root?.let { runCatching { windowManager?.removeView(it) } }
         owner?.destroy()
         root = null; owner = null; windowManager = null
+    }
+
+    private fun updateSettingsWindow(context: Context) {
+        val view = root ?: return
+        val wm = windowManager ?: return
+        val metrics = context.resources.displayMetrics
+        val params = (view.layoutParams as? WindowManager.LayoutParams) ?: return
+        params.width = (metrics.widthPixels * .78f).toInt()
+        params.height = (metrics.heightPixels * .78f).toInt()
+        params.gravity = Gravity.CENTER
+        runCatching { wm.updateViewLayout(view, params) }
     }
 
     private fun updatePosition(context: Context, position: DrawerPosition) {
@@ -219,6 +231,9 @@ object DrawerOverlayService {
             .sortedWith(compareByDescending<com.homelessbrian.nuviocompanion.InstalledApp> { it.packageName in favorites }
                 .thenBy { it.label.lowercase() })
         val panel = Color(0xFF111827).copy(alpha = opacity)
+        LaunchedEffect(showingSettings, position) {
+            if (showingSettings) updateSettingsWindow(context) else updatePosition(context, position)
+        }
         val tile = Color(0xFF202B40)
         val accent = Color(0xFFAA8CFF)
 
