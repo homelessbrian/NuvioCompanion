@@ -44,7 +44,7 @@ object IconPackManager {
             }.getOrNull().orEmpty()
 
             catalog.distinctBy { it.drawableName }
-                .filter { drawable(context, packPackage, it.drawableName) != null }
+                .filter { drawable(packContext, packPackage, it.drawableName) != null }
                 .sortedWith(compareBy<IconPackEntry> { it.category.lowercase() }.thenBy { it.drawableName.lowercase() })
         }.getOrDefault(emptyList())
     }
@@ -98,6 +98,11 @@ object IconPackManager {
     fun drawable(context: Context, packPackage: String, drawableName: String): Drawable? =
         runCatching {
             val packContext = context.createPackageContext(packPackage, Context.CONTEXT_IGNORE_SECURITY)
+            drawable(packContext, packPackage, drawableName)
+        }.getOrNull()
+
+    private fun drawable(packContext: Context, packPackage: String, drawableName: String): Drawable? =
+        runCatching {
             val id = packContext.resources.getIdentifier(drawableName, "drawable", packPackage)
                 .takeIf { it != 0 }
                 ?: packContext.resources.getIdentifier(drawableName, "mipmap", packPackage)
