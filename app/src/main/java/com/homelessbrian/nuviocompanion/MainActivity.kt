@@ -122,7 +122,7 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
     var keyCode by remember { mutableIntStateOf(DrawerSettings.keyCode(context)) }
     var secondKeyCode by remember { mutableIntStateOf(DrawerSettings.secondKeyCode(context)) }
     var recording by remember { mutableStateOf(DrawerSettings.isRecording(context)) }
-    var inputStatus by remember { mutableStateOf("Ready · press your assigned remote shortcut to test") }
+    var inputStatus by remember { mutableStateOf("Shortcut not configured") }
     var accessibilityEnabled by remember { mutableStateOf(isCompanionAccessibilityEnabled(context)) }
     var refresh by remember { mutableIntStateOf(0) }
     val nuvioApps = apps.filter { it.label.contains("nuvio", true) || it.packageName.contains("nuvio", true) }
@@ -136,11 +136,6 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
                         secondKeyCode = DrawerSettings.secondKeyCode(context)
                         recording = false
                     }
-                    RemoteKeyAccessibilityService.ACTION_INPUT_EVENT -> {
-                        val received = i.getIntExtra(RemoteKeyAccessibilityService.EXTRA_KEY_CODE, 0)
-                        val mapped = i.getBooleanExtra(RemoteKeyAccessibilityService.EXTRA_MAPPED, false)
-                        inputStatus = if (mapped) "Key $received · assigned and consumed" else "Key $received · not assigned"
-                    }
                     RemoteKeyAccessibilityService.ACTION_SHORTCUT_TRIGGERED -> inputStatus = "Shortcut activated · opening drawer"
                     RemoteKeyAccessibilityService.ACTION_OVERLAY_STATUS -> inputStatus = i.getStringExtra(RemoteKeyAccessibilityService.EXTRA_STATUS) ?: "Drawer status unavailable"
                 }
@@ -148,7 +143,6 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
         }
         val filter = IntentFilter().apply {
             addAction(RemoteKeyAccessibilityService.ACTION_SHORTCUT_RECORDED)
-            addAction(RemoteKeyAccessibilityService.ACTION_INPUT_EVENT)
             addAction(RemoteKeyAccessibilityService.ACTION_SHORTCUT_TRIGGERED)
             addAction(RemoteKeyAccessibilityService.ACTION_OVERLAY_STATUS)
         }
@@ -194,6 +188,16 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
                     ) {
                         Text("REMOTE SHORTCUT", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         Text("Control your drawer from the remote", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                        Text("1. ENABLE ACCESSIBILITY", color = muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            if (accessibilityEnabled) "Remote access is enabled" else "Required before you can record a remote button",
+                            color = if (accessibilityEnabled) Color(0xFF8FE0B2) else Color(0xFFFFC47A),
+                            fontSize = 11.sp
+                        )
+                        OutlinedButton(onClick = onAccessibility) {
+                            Text(if (accessibilityEnabled) "Accessibility settings" else "Enable accessibility")
+                        }
+                        Text("2. CONFIGURE YOUR SHORTCUT", color = muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         Text("Shortcut type", color = muted, fontSize = 11.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             ShortcutMode.entries.forEach { option ->
@@ -207,19 +211,21 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
                                 )
                             }
                         }
-                        Text(if (keyCode == 0) "Primary button · Not assigned" else "Primary button · Key $keyCode", color = Color.White, fontSize = 12.sp)
-                        if (mode == ShortcutMode.COMBINATION) Text(if (secondKeyCode == 0) "Second button · Not assigned" else "Second button · Key $secondKeyCode", color = muted, fontSize = 11.sp)
+                        Text(if (keyCode == 0) "Primary button · Not assigned" else "Primary button · Button $keyCode", color = Color.White, fontSize = 12.sp)
+                        if (mode == ShortcutMode.COMBINATION) Text(if (secondKeyCode == 0) "Second button · Not assigned" else "Second button · Button $secondKeyCode", color = muted, fontSize = 11.sp)
                         Button(
+                            enabled = accessibilityEnabled && !recording,
                             onClick = { DrawerSettings.setRecordingTarget(context, "primary"); DrawerSettings.setRecording(context, true); recording = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = accent)
-                        ) { Text(if (recording) "Listening for button…" else "Record remote button") }
+                            colors = ButtonDefaults.buttonColors(containerColor = accent, disabledContainerColor = panel2)
+                        ) { Text(if (recording) "Press a button on your remote…" else if (accessibilityEnabled) "Record remote button" else "Enable accessibility first") }
                         if (mode == ShortcutMode.COMBINATION) {
-                            TextButton(onClick = { DrawerSettings.setRecordingTarget(context, "secondary"); DrawerSettings.setRecording(context, true); recording = true }) { Text("Record second button") }
+                            TextButton(
+                                enabled = accessibilityEnabled && !recording,
+                                onClick = { DrawerSettings.setRecordingTarget(context, "secondary"); DrawerSettings.setRecording(context, true); recording = true }
+                            ) { Text("Record second button") }
                         }
                         Text(inputStatus, color = Color(0xFFB9C5DA), fontSize = 11.sp)
-                        Text("The accessibility key filter consumes assigned events when Android exposes them.", color = muted, fontSize = 10.sp)
-                        Spacer(Modifier.weight(1f))
-                        OutlinedButton(onClick = onAccessibility) { Text("Accessibility settings") }
+                        Text("Some device firmware intercepts remote keys before Android accessibility can receive them.", color = muted, fontSize = 10.sp)
                     }
 
                     Column(
