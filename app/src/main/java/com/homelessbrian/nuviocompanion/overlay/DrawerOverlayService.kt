@@ -9,8 +9,10 @@ import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -20,9 +22,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.ComposeView
@@ -151,15 +160,51 @@ object DrawerOverlayService {
                     Text("BACK  ·  CLOSE", color = Color(0xFFABB6CC), fontSize = 12.sp)
                 }
                 Spacer(Modifier.height(18.dp))
-                LazyVerticalGrid(columns = GridCells.Adaptive(minSize = 116.dp), modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                val firstAppFocus = remember { FocusRequester() }
+                LaunchedEffect(apps.size) {
+                    if (apps.isNotEmpty()) firstAppFocus.requestFocus()
+                }
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 116.dp),
+                    modifier = Modifier.fillMaxSize().focusGroup(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     items(apps, key = { it.packageName }) { app ->
-                        Column(Modifier.height(116.dp).background(Color(0xFF252D3D), RoundedCornerShape(16.dp))
-                            .clickable { onLaunch(app.packageName) }.focusable().padding(10.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                        var isFocused by remember(app.packageName) { mutableStateOf(false) }
+                        val focusModifier = if (apps.firstOrNull()?.packageName == app.packageName) {
+                            Modifier.focusRequester(firstAppFocus)
+                        } else Modifier
+
+                        Column(
+                            focusModifier
+                                .onFocusChanged { isFocused = it.isFocused }
+                                .height(116.dp)
+                                .background(
+                                    if (isFocused) Color(0xFF394D78) else Color(0xFF252D3D),
+                                    RoundedCornerShape(16.dp)
+                                )
+                                .then(
+                                    if (isFocused) Modifier.border(
+                                        width = 3.dp,
+                                        color = Color(0xFF9DB5FF),
+                                        shape = RoundedCornerShape(16.dp)
+                                    ) else Modifier
+                                )
+                                .focusable()
+                                .clickable { onLaunch(app.packageName) }
+                                .padding(10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
                             Image(app.icon.toBitmap(96, 96).asImageBitmap(), app.label, Modifier.size(54.dp))
                             Spacer(Modifier.height(8.dp))
-                            Text(app.label, color = Color.White, fontSize = 13.sp, maxLines = 1)
+                            Text(
+                                app.label,
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                maxLines = 1
+                            )
                         }
                     }
                 }
