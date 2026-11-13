@@ -191,7 +191,7 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
                     ) {
                         Text("HOME EXPERIENCE", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         Text("Optional Home behavior", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                        Text("If you choose Companion as your device's Home app, Home opens your selected Nuvio app. Backing out of Nuvio shows the Companion home screen, so you can always reach settings. This is optional; the remote shortcut opens the drawer without changing your Home app.", color = muted, fontSize = 11.sp)
+                        Text("If you choose Nuvio Launch as your device's Home app, Home opens your selected Nuvio app. Backing out of Nuvio shows the Nuvio Launch home screen, so you can always reach settings. This is optional; the remote shortcut opens the drawer without changing your Home app.", color = muted, fontSize = 11.sp)
                         OutlinedButton(onClick = onSetLauncher, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
                             Text("Choose Home app", maxLines = 1)
                         }
@@ -210,7 +210,7 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
                         }
                         Text("SELECTED APP", color = muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         if (nuvioApps.isEmpty()) {
-                            Text("No Nuvio app detected. Install one, then reopen Companion.", color = muted, fontSize = 11.sp)
+                            Text("No Nuvio app detected. Install one, then reopen Nuvio Launch.", color = muted, fontSize = 11.sp)
                         } else {
                             nuvioApps.take(4).forEach { app ->
                                 Row(
@@ -228,7 +228,7 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
                         }
                         Spacer(Modifier.weight(1f))
                         Text("LAUNCHER RECOVERY", color = muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        Text("Back out of Nuvio to reach the Companion home screen, or use the Android Settings tile in the app drawer. On many Google TV remotes, holding Home opens the system panel with Settings. You can also go to Android Settings → Apps → Nuvio Companion.", color = muted, fontSize = 10.sp)
+                        Text("Back out of Nuvio to reach the Nuvio Launch home screen, or use the Android Settings tile in the app drawer. On many Google TV remotes, holding Home opens the system panel with Settings. You can also go to Android Settings → Apps → Nuvio Launch.", color = muted, fontSize = 10.sp)
                         OutlinedButton(onClick = onAndroidSettings, modifier = Modifier.fillMaxWidth()) {
                             Text("Open Android Settings", maxLines = 1)
                         }

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Nuvio Companion</string>
-    <string name="remote_service_name">Nuvio Companion Remote Shortcuts</string>
-    <string name="remote_service_description">Receives configured remote-control key events to open the companion app drawer.</string>
+    <string name="app_name">Nuvio Launch</string>
+    <string name="remote_service_name">Nuvio Launch Remote Shortcuts</string>
+    <string name="remote_service_description">Lets Nuvio Launch open your app drawer when you press the remote button you chose.</string>
 </resources>

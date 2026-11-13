@@ -43,7 +43,7 @@ jobs:
           mkdir -p out
           apk="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
           test -n "$apk"
-          cp "$apk" "out/Nuvio-Companion-Prototype-Release-${GITHUB_RUN_NUMBER}.apk"
+          cp "$apk" "out/Nuvio-Launch-Prototype-Release-${GITHUB_RUN_NUMBER}.apk"
 
       - name: Publish versioned GitHub Release asset
         uses: softprops/action-gh-release@v2

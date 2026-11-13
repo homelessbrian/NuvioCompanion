@@ -162,7 +162,7 @@ class HomeActivity : ComponentActivity() {
         when {
             !DrawerSettings.homeRedirectEnabled(this) -> showHome(null)
             DrawerSettings.homeRedirectPaused(this) -> showHome(PAUSED_NOTICE)
-            nuvio == null -> showHome("Choose your Nuvio app in Companion settings so Home can open it.")
+            nuvio == null -> showHome("Choose your Nuvio app in Nuvio Launch settings so Home can open it.")
             else -> launchNuvio(nuvio)
         }
     }
@@ -175,7 +175,7 @@ class HomeActivity : ComponentActivity() {
             leftSinceLaunch = false
         } else {
             awaitingReturn = false
-            showHome("Couldn't open Nuvio. It may have been uninstalled. Choose it again in Companion settings.")
+            showHome("Couldn't open Nuvio. It may have been uninstalled. Choose it again in Nuvio Launch settings.")
         }
     }
 
@@ -283,7 +283,7 @@ private fun HomeScreen(
         Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 27.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        Text("Nuvio Companion", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+        Text("Nuvio Launch", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold)
 
         val banner = notice ?: if (!redirectEnabled) "Home is showing this screen instead of Nuvio." else null
         if (banner != null) {
@@ -298,7 +298,7 @@ private fun HomeScreen(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             HomeButton(if (hasNuvio) "Open Nuvio" else "Choose Nuvio app", Modifier.focusRequester(firstAction), primary = true, onClick = onOpenNuvio)
             HomeButton("Android Settings", onClick = onAndroidSettings)
-            HomeButton("Companion Settings", onClick = onCompanionSettings)
+            HomeButton("Nuvio Launch Settings", onClick = onCompanionSettings)
             if (redirectEnabled) HomeButton("Stop using as Home", onClick = onStopUsingAsHome)
             else HomeButton("Send Home to Nuvio", onClick = onSendHomeToNuvio)
         }

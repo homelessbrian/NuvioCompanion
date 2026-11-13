@@ -25,7 +25,7 @@ object SystemShortcuts {
 
         return listOfNotNull(
             settingsIcon?.let { InstalledApp("Android Settings", ANDROID_SETTINGS, it) },
-            companionIcon?.let { InstalledApp("Companion Settings", COMPANION_SETTINGS, it) }
+            companionIcon?.let { InstalledApp("Nuvio Launch", COMPANION_SETTINGS, it) }
         )
     }
 
