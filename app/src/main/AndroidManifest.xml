@@ -6,6 +6,7 @@
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LEANBACK_LAUNCHER" /></intent>
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent>
         <intent><action android:name="app.lawnchair.icons.THEMED_ICON" /></intent>
+        <intent><action android:name="android.settings.SETTINGS" /></intent>
         <intent><action android:name="org.adw.ActivityStarter.THEMES" /></intent><intent><action android:name="com.novalauncher.THEME" /></intent><intent><action android:name="com.anddoes.launcher.THEME" /></intent><intent><action android:name="com.teslacoilsw.launcher.THEME" /></intent>
     </queries>
     <application android:allowBackup="false" android:icon="@android:drawable/sym_def_app_icon" android:label="@string/app_name" android:supportsRtl="true" android:theme="@style/Theme.NuvioCompanion">
@@ -14,6 +15,20 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <!-- Device Home screen. Opens Nuvio on a Home press; shows the Companion home screen
+             when the user backs out of Nuvio, so Nuvio can never trap the user. -->
+        <activity
+            android:name=".HomeActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:taskAffinity="${applicationId}.home"
+            android:excludeFromRecents="true"
+            android:clearTaskOnLaunch="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>

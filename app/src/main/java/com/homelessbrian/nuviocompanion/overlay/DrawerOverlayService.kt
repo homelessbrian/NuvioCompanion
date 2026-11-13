@@ -75,6 +75,7 @@ import com.homelessbrian.nuviocompanion.AppCatalog
 import com.homelessbrian.nuviocompanion.IconPackManager
 import com.homelessbrian.nuviocompanion.DrawerPosition
 import com.homelessbrian.nuviocompanion.DrawerSettings
+import com.homelessbrian.nuviocompanion.SystemShortcuts
 
 /** Owns the system overlay from the AccessibilityService context, which is required for ACCESSIBILITY_OVERLAY. */
 object DrawerOverlayService {
@@ -190,7 +191,10 @@ object DrawerOverlayService {
                         DrawerContent(
                             service,
                             onClose = ::close,
-                            onLaunch = { pkg -> if (AppCatalog.launch(service, pkg)) close() else report(service, "Could not open this app. It may no longer be installed.") }
+                            onLaunch = { pkg ->
+                                val opened = if (SystemShortcuts.isShortcut(pkg)) SystemShortcuts.launch(service, pkg) else AppCatalog.launch(service, pkg)
+                                if (opened) close() else report(service, "Could not open this app. It may no longer be installed.")
+                            }
                         )
                     }
                 }
@@ -254,10 +258,14 @@ object DrawerOverlayService {
         val visibleApps = allApps.filter { it.packageName !in hidden }
             .sortedWith(compareByDescending<com.homelessbrian.nuviocompanion.InstalledApp> { it.packageName in favorites }
                 .thenBy { it.label.lowercase() })
+        // Android Settings and Companion Settings always sit at the end of the drawer and cannot be
+        // hidden, so there is always a way out of any app (including Nuvio as Home).
+        val shortcutTiles = remember { SystemShortcuts.tiles(context) }
+        val drawerItems = visibleApps + shortcutTiles
         LaunchedEffect(showingSettings, visibleApps.size, position) {
             androidx.compose.runtime.withFrameNanos { }
             if (showingSettings) settingsFocusRequester.requestFocus()
-            else if (visibleApps.isNotEmpty()) drawerFocusRequester.requestFocus()
+            else if (drawerItems.isNotEmpty()) drawerFocusRequester.requestFocus()
         }
         val panel = Color(0xFF1A1A1A).copy(alpha = opacity)
         LaunchedEffect(showingSettings, position) {
@@ -479,8 +487,8 @@ object DrawerOverlayService {
                         verticalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(6.dp)
                     ) {
-                        items(visibleApps, key = { it.packageName }) { app ->
-                            CenterAppTile(app, showNames, showIcons, focusGlow, if (app == visibleApps.firstOrNull()) Modifier.focusRequester(drawerFocusRequester) else Modifier) { onLaunch(app.packageName) }
+                        items(drawerItems, key = { it.packageName }) { app ->
+                            CenterAppTile(app, showNames, showIcons, focusGlow, if (app == drawerItems.firstOrNull()) Modifier.focusRequester(drawerFocusRequester) else Modifier) { onLaunch(app.packageName) }
                         }
                     }
                 }
@@ -495,8 +503,8 @@ object DrawerOverlayService {
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(vertical = 4.dp)
                     ) {
-                        columnItems(visibleApps, key = { it.packageName }) { app ->
-                            SideAppTile(app, showNames, showIcons, focusGlow, if (app == visibleApps.firstOrNull()) Modifier.focusRequester(drawerFocusRequester) else Modifier) { onLaunch(app.packageName) }
+                        columnItems(drawerItems, key = { it.packageName }) { app ->
+                            SideAppTile(app, showNames, showIcons, focusGlow, if (app == drawerItems.firstOrNull()) Modifier.focusRequester(drawerFocusRequester) else Modifier) { onLaunch(app.packageName) }
                         }
                     }
                     Spacer(Modifier.height(8.dp))
@@ -523,8 +531,8 @@ object DrawerOverlayService {
                         verticalAlignment = Alignment.CenterVertically,
                         contentPadding = PaddingValues(vertical = 9.dp, horizontal = 4.dp)
                     ) {
-                        rowItems(visibleApps, key = { it.packageName }) { app ->
-                            DockAppTile(app, showNames, showIcons, focusGlow, if (app == visibleApps.firstOrNull()) Modifier.focusRequester(drawerFocusRequester) else Modifier) { onLaunch(app.packageName) }
+                        rowItems(drawerItems, key = { it.packageName }) { app ->
+                            DockAppTile(app, showNames, showIcons, focusGlow, if (app == drawerItems.firstOrNull()) Modifier.focusRequester(drawerFocusRequester) else Modifier) { onLaunch(app.packageName) }
                         }
                     }
                 }

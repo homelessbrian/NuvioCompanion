@@ -1,6 +1,5 @@
 package com.homelessbrian.nuviocompanion
 
-import android.app.role.RoleManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -40,83 +39,33 @@ private val Panel = Color(0xFF1A1A1A)
 private val Muted = Color(0xFFB3B3B3)
 private val Accent = Color(0xFFF5F5F5)
 
+/**
+ * Companion settings. Opened from the app icon, the Companion home screen, or the drawer's
+ * "Companion Settings" tile. Home handling lives in [HomeActivity].
+ */
 class MainActivity : ComponentActivity() {
-    private val homeRedirectPrefs by lazy { getSharedPreferences("companion_home_state", MODE_PRIVATE) }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        handleEntry(intent)
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        handleEntry(intent)
-    }
-
-    private fun handleEntry(launchIntent: Intent?) {
-        val fromHome = launchIntent?.categories?.contains(Intent.CATEGORY_HOME) == true
-        if (!fromHome) {
-            // Opening the app icon is always an escape hatch back to settings.
-            homeRedirectPrefs.edit().putBoolean("redirected_once", false).apply()
-            showSettings()
-            return
-        }
-
-        // Redirect to Nuvio only once. The next Home press opens Companion settings
-        // instead of launching Nuvio again and creating an endless Home loop.
-        val alreadyRedirected = homeRedirectPrefs.getBoolean("redirected_once", false)
-        if (!alreadyRedirected && launchSelectedNuvio()) {
-            homeRedirectPrefs.edit().putBoolean("redirected_once", true).apply()
-            finish()
-            return
-        }
-
-        homeRedirectPrefs.edit().putBoolean("redirected_once", false).apply()
-        showSettings()
-    }
-
-    private fun launchSelectedNuvio(): Boolean =
-        DrawerSettings.selectedNuvio(this)?.let { AppCatalog.launch(this, it) } ?: false
-    private fun showSettings() {
-        setContent { MaterialTheme(colorScheme = darkColorScheme(primary = Accent, background = Ink, surface = Panel)) { CompanionSettings(::openAccessibilitySettings, ::requestHomeRole) } }
-    }
-    private fun openAccessibilitySettings() = startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-
-    private fun requestHomeRole() {
-        // Open the device's Home-app selector first. RoleManager can immediately
-        // grant the role on some TV firmware instead of showing the launcher list.
-        val candidates = listOf(
-            Settings.ACTION_HOME_SETTINGS,
-            Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS,
-            "android.settings.HOME_SETTINGS",
-            Settings.ACTION_SETTINGS
-        ).distinct()
-
-        for (action in candidates) {
-            try {
-                startActivity(Intent(action))
-                return
-            } catch (_: Exception) {
-                // Try the next system settings entry point.
+        setContent {
+            MaterialTheme(colorScheme = darkColorScheme(primary = Accent, background = Ink, surface = Panel)) {
+                CompanionSettings(
+                    onAccessibility = ::openAccessibilitySettings,
+                    onSetLauncher = { HomeSetup.openHomePicker(this) },
+                    onAndroidSettings = { HomeSetup.openAndroidSettings(this) }
+                )
             }
         }
+    }
 
-        // Last-resort fallback for devices that do not expose Home settings.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val roles = getSystemService(RoleManager::class.java)
-            if (roles != null && roles.isRoleAvailable(RoleManager.ROLE_HOME) &&
-                !roles.isRoleHeld(RoleManager.ROLE_HOME)
-            ) {
-                runCatching { startActivity(roles.createRequestRoleIntent(RoleManager.ROLE_HOME)) }
-            }
-        }
+    private fun openAccessibilitySettings() {
+        runCatching { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
     }
 }
 
 @Composable
-private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> Unit) {
+private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> Unit, onAndroidSettings: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    var homeRedirect by remember { mutableStateOf(DrawerSettings.homeRedirectEnabled(context)) }
     var apps by remember { mutableStateOf(AppCatalog.load(context, true)) }
     var selectedNuvio by remember { mutableStateOf(DrawerSettings.selectedNuvio(context)) }
     var mode by remember { mutableStateOf(DrawerSettings.shortcutMode(context)) }
@@ -133,6 +82,7 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
             if (event == Lifecycle.Event.ON_RESUME) {
                 apps = AppCatalog.load(context, true)
                 selectedNuvio = DrawerSettings.selectedNuvio(context)
+                homeRedirect = DrawerSettings.homeRedirectEnabled(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -241,9 +191,22 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
                     ) {
                         Text("HOME EXPERIENCE", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         Text("Optional Home behavior", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                        Text("If you choose Companion as your device's Home app, Home opens your selected Nuvio app. This is optional; the remote shortcut opens the drawer without changing your Home app.", color = muted, fontSize = 11.sp)
+                        Text("If you choose Companion as your device's Home app, Home opens your selected Nuvio app. Backing out of Nuvio shows the Companion home screen, so you can always reach settings. This is optional; the remote shortcut opens the drawer without changing your Home app.", color = muted, fontSize = 11.sp)
                         OutlinedButton(onClick = onSetLauncher, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
-                            Text("Set as Home launcher", maxLines = 1)
+                            Text("Choose Home app", maxLines = 1)
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                homeRedirect = !homeRedirect
+                                DrawerSettings.setHomeRedirectEnabled(context, homeRedirect)
+                                if (homeRedirect) {
+                                    DrawerSettings.setHomeRedirectPaused(context, false)
+                                    DrawerSettings.setHomeQuickReturns(context, 0)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+                        ) {
+                            Text(if (homeRedirect) "Home opens Nuvio · On" else "Home opens Nuvio · Off", maxLines = 1)
                         }
                         Text("SELECTED APP", color = muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         if (nuvioApps.isEmpty()) {
@@ -265,7 +228,10 @@ private fun CompanionSettings(onAccessibility: () -> Unit, onSetLauncher: () -> 
                         }
                         Spacer(Modifier.weight(1f))
                         Text("LAUNCHER RECOVERY", color = muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        Text("Open Companion normally from its app icon to return to settings. You can change the default Home app in Android settings.", color = muted, fontSize = 10.sp)
+                        Text("Back out of Nuvio to reach the Companion home screen, or use the Android Settings tile in the app drawer. On many Google TV remotes, holding Home opens the system panel with Settings. You can also go to Android Settings → Apps → Nuvio Companion.", color = muted, fontSize = 10.sp)
+                        OutlinedButton(onClick = onAndroidSettings, modifier = Modifier.fillMaxWidth()) {
+                            Text("Open Android Settings", maxLines = 1)
+                        }
                     }
                 }
 

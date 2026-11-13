@@ -4,7 +4,8 @@ Nuvio Companion is an Android TV companion launcher with a configurable, system-
 
 ## Current direction
 
-- **Nuvio-first Home behavior:** when selected as the device Home app, Companion launches the configured Nuvio installation when Home is pressed.
+- **Nuvio-first Home behavior:** when selected as the device Home app, pressing Home opens the configured Nuvio installation.
+- **Never trapped in Nuvio:** backing out of Nuvio (or Nuvio closing) shows the Companion home screen instead of reopening Nuvio. It always offers Open Nuvio, Android Settings, Companion Settings and Stop using as Home. If Nuvio closes within a few seconds of opening twice in a row, Home pauses until you choose Open Nuvio. The app drawer always ends with Android Settings and Companion Settings tiles.
 - **Universal app library:** discovers installed apps that expose Android TV or standard launcher activities.
 - **Five drawer placements:** Bottom, Top, Left, Right, and Center.
 - **App controls:** hide apps and mark favorites; favorites appear first.
@@ -14,7 +15,7 @@ Nuvio Companion is an Android TV companion launcher with a configurable, system-
 
 1. Install the APK.
 2. Open Nuvio Companion and choose the Nuvio installation to launch from Home.
-3. Select **Set as device launcher** and choose Nuvio Companion as Home.
+3. Optional: select **Choose Home app** and pick Nuvio Companion. On Google TV the stock launcher may keep the Home button even after this.
 4. Enable **Nuvio Companion Remote Shortcuts** in Android Accessibility settings.
 5. Return to Companion, record a remote button, and choose the shortcut gesture.
 

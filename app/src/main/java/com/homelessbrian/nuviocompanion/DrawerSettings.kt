@@ -39,6 +39,14 @@ object DrawerSettings {
         if (drawableName.isNullOrBlank()) updated.remove(packageName) else updated[packageName] = drawableName
         prefs(context).edit().putStringSet("app_icon_overrides", updated.map { "${it.key}=${it.value}" }.toSet()).apply()
     }
+    /** When false, Home shows the Companion home screen instead of opening Nuvio. */
+    fun homeRedirectEnabled(context: Context) = prefs(context).getBoolean("home_redirect_enabled", true)
+    fun setHomeRedirectEnabled(context: Context, value: Boolean) { prefs(context).edit().putBoolean("home_redirect_enabled", value).apply() }
+    /** Set automatically when Nuvio keeps closing right after Home opens it. Cleared by "Open Nuvio". */
+    fun homeRedirectPaused(context: Context) = prefs(context).getBoolean("home_redirect_paused", false)
+    fun setHomeRedirectPaused(context: Context, value: Boolean) { prefs(context).edit().putBoolean("home_redirect_paused", value).apply() }
+    fun homeQuickReturns(context: Context) = prefs(context).getInt("home_quick_returns", 0)
+    fun setHomeQuickReturns(context: Context, value: Int) { prefs(context).edit().putInt("home_quick_returns", value).apply() }
     fun selectedNuvio(context: Context) = prefs(context).getString("selected_nuvio", null)
     fun setSelectedNuvio(context: Context, value: String?) { prefs(context).edit().putString("selected_nuvio", value).apply() }
     fun showNames(context: Context) = prefs(context).getBoolean("drawer_show_names", false)
