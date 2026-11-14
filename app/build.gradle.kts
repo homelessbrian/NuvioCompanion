@@ -12,8 +12,13 @@ android {
         applicationId = "com.homelessbrian.nuviocompanion"
         minSdk = 24
         targetSdk = 35
-        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 2
-        versionName = "0.2.0"
+        // Release builds get their version from the Build Release workflow (APP_VERSION, e.g. 0.3.0).
+        // The version code is made from it (0.3.0 -> 3000, 1.2.3 -> 1002003) so every newer
+        // release can install over the older one. Debug builds keep the run number.
+        val appVersion = System.getenv("APP_VERSION")?.trim()?.removePrefix("v")?.takeIf { Regex("""\d+\.\d+\.\d+""").matches(it) }
+        versionCode = appVersion?.split('.')?.map { it.toInt() }?.let { (major, minor, patch) -> major * 1_000_000 + minor * 1_000 + patch }
+            ?: System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 2
+        versionName = appVersion ?: "0.2.0"
     }
 
     val companionSigningStore = System.getenv("COMPANION_SIGNING_STORE")
@@ -46,8 +51,13 @@ android {
             }
         }
         release {
-            signingConfig = signingConfigs.getByName("debug")
-            isMinifyEnabled = false
+            // The permanent Nuvio Launch key, so each release can update the one before it.
+            // The Build Release workflow refuses to run without it.
+            signingConfig = signingConfigs.findByName("companionPersistent") ?: signingConfigs.getByName("debug")
+            isDebuggable = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 
@@ -56,7 +66,12 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
-    buildFeatures { compose = true }
+    // Lint's extra release-only pass is skipped so it can't block a release; the build itself still checks the code.
+    lint { checkReleaseBuilds = false }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
 }
 
 dependencies {

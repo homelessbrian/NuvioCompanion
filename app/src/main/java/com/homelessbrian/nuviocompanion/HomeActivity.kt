@@ -53,6 +53,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.homelessbrian.nuviocompanion.update.AppUpdater
+import com.homelessbrian.nuviocompanion.update.UpdateBanner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -134,6 +136,8 @@ class HomeActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Only check for updates when this screen is really showing, not while handing off to Nuvio.
+        if (mode == Mode.Home) AppUpdater.onResume(this)
         redirectEnabled = DrawerSettings.homeRedirectEnabled(this)
         if (awaitingReturn && leftSinceLaunch) {
             onReturnedWithoutHomePress()
@@ -212,6 +216,7 @@ class HomeActivity : ComponentActivity() {
         notice = message
         mode = Mode.Home
         refreshKey++
+        AppUpdater.maybeCheck(this)
     }
 
     private fun openNuvioFromButton() {
@@ -296,6 +301,13 @@ private fun HomeScreen(
 
         val banner = notice ?: if (!redirectEnabled) "Home is showing this screen instead of Nuvio." else null
         if (banner != null) NoteBox(banner, warning = true)
+
+        val activity = context as? android.app.Activity
+        UpdateBanner(
+            onInstall = { activity?.let { AppUpdater.downloadAndInstall(it) } },
+            onLater = { AppUpdater.snooze(context) },
+            onOpenPermission = { activity?.let { AppUpdater.openInstallPermission(it) } }
+        )
 
         Row(Modifier.fillMaxWidth().height(220.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
             FocusCard(

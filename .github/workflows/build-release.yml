@@ -1,10 +1,14 @@
-name: Build Release Variant (Prototype)
+name: Build Release
+
+# Builds the real (non-debug) Nuvio Launch, signed with the permanent Nuvio Launch key, and posts
+# it as a GitHub Release. The app's updater looks at the latest release, so this is what
+# "ships an update". Release notes come from RELEASE_NOTES.md.
 
 on:
   workflow_dispatch:
     inputs:
-      confirm:
-        description: "Type BUILD to confirm this prototype release-variant build"
+      version:
+        description: "Version number, for example 0.3.0 (must be higher than the last release)"
         required: true
         type: string
 
@@ -17,11 +21,56 @@ concurrency:
 
 jobs:
   build:
-    if: ${{ inputs.confirm == 'BUILD' && github.ref == 'refs/heads/main' }}
+    if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Check version number
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="${INPUT_VERSION#v}"
+          version="$(echo "$version" | tr -d '[:space:]')"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version must look like 0.3.0 (got '$INPUT_VERSION')."
+            exit 1
+          fi
+          if gh release view "v$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Release v$version already exists. Pick a higher version number."
+            exit 1
+          fi
+          latest="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName 2>/dev/null || true)"
+          latest="${latest#v}"
+          if [[ "$latest" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            highest="$(printf '%s\n%s\n' "$latest" "$version" | sort -V | tail -1)"
+            if [[ "$highest" != "$version" || "$latest" == "$version" ]]; then
+              echo "::error::Version $version is not higher than the latest release ($latest)."
+              exit 1
+            fi
+          fi
+          test -s RELEASE_NOTES.md || { echo "::error::RELEASE_NOTES.md is missing or empty."; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Load the permanent signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.NUVIO_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.NUVIO_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::error::The signing secrets NUVIO_KEYSTORE_BASE64 and NUVIO_KEYSTORE_PASSWORD are not set (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/nuviolaunch-release.p12"
+          {
+            echo "COMPANION_SIGNING_STORE=$RUNNER_TEMP/nuviolaunch-release.p12"
+            echo "COMPANION_SIGNING_ALIAS=nuviolaunch"
+          } >> "$GITHUB_ENV"
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -34,23 +83,32 @@ jobs:
         with:
           gradle-version: "8.13"
 
-      - name: Build prototype release variant
+      - name: Build release APK
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+          COMPANION_SIGNING_PASSWORD: ${{ secrets.NUVIO_KEYSTORE_PASSWORD }}
+          COMPANION_SIGNING_KEY_PASSWORD: ${{ secrets.NUVIO_KEYSTORE_PASSWORD }}
         run: gradle :app:assembleRelease --parallel --build-cache --no-daemon
 
-      - name: Prepare versioned APK
+      - name: Prepare APK
         run: |
           set -euo pipefail
           mkdir -p out
           apk="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
           test -n "$apk"
-          cp "$apk" "out/Nuvio-Launch-Prototype-Release-${GITHUB_RUN_NUMBER}.apk"
+          cp "$apk" out/NuvioLaunch.apk
+          (cd out && sha256sum NuvioLaunch.apk > NuvioLaunch.apk.sha256)
+          rm -f "$RUNNER_TEMP/nuviolaunch-release.p12"
 
-      - name: Publish versioned GitHub Release asset
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: release-prototype-${{ github.run_number }}
-          name: Prototype Release Build #${{ github.run_number }}
-          body: Prototype release-variant build. The stable downloader URL is reserved for the manually signed debug APK.
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Nuvio Launch ${{ steps.version.outputs.version }}
+          body_path: RELEASE_NOTES.md
           target_commitish: ${{ github.sha }}
-          prerelease: true
-          files: out/*.apk
+          prerelease: false
+          make_latest: true
+          files: |
+            out/NuvioLaunch.apk
+            out/NuvioLaunch.apk.sha256

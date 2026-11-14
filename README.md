@@ -10,7 +10,8 @@ Nuvio Launch is an Android TV companion launcher for Nuvio: one remote button op
 - **Never trapped in Nuvio:** backing out of Nuvio shows the Nuvio Launch home screen. If Nuvio closes right after opening twice in a row, Home pauses until you choose Open Nuvio. The drawer always ends with Android Settings and Nuvio Launch.
 - **Icon packs:** pick any Nova/Lawnchair/ADW icon pack and every app matches it. Apps the pack doesn't include get a pack-style icon. Change one app's icon from any installed pack, with suggestions, categories and search.
 - **Highlight color:** pick from Nuvio's own theme colors so the drawer matches Nuvio.
-- **Settings:** remote shortcut (with a button test), Home button, drawer look, apps (show/hide, favorites, order, icons), icon pack, help & recovery.
+- **Settings:** remote shortcut (with a button test), Home button, drawer look, apps (show/hide, favorites, order, icons), icon pack, updates, help & recovery.
+- **Built-in updates:** when a new release is out, a banner offers Download & install. Settings → Updates checks on demand.
 
 ## Setup
 
@@ -27,7 +28,13 @@ The current build is an implementation milestone, not a claim of device-wide com
 
 The project uses Gradle, Android Gradle Plugin, Kotlin, and Jetpack Compose. Builds are manual only: commits and pull requests do not start GitHub Actions builds. Use **Actions → Build and Test → Run workflow** for a compile/test run, or **Actions → Build Debug APK → Run workflow** to publish a test APK from the selected branch. The workflow dispatch ref is the source revision that gets built.
 
-## Stable APK download
+## Download (regular version, updates itself)
+
+`https://github.com/homelessbrian/NuvioLaunch/releases/latest/download/NuvioLaunch.apk`
+
+Releases are made with **Actions → Build Release → Run workflow** (enter a version number such as 0.3.0). It builds the full, faster version, signs it with the permanent Nuvio Launch key (repository secrets `NUVIO_KEYSTORE_BASE64` and `NUVIO_KEYSTORE_PASSWORD`) and posts it as a GitHub Release using `RELEASE_NOTES.md`. Installed copies see the new release and offer to update.
+
+## Test (debug) APK download
 
 The manually dispatched **Build Debug APK** workflow publishes the latest debug APK to the same path each time:
 

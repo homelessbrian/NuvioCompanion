@@ -62,6 +62,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.homelessbrian.nuviocompanion.remote.KeyNames
 import com.homelessbrian.nuviocompanion.remote.RemoteKeyAccessibilityService
+import com.homelessbrian.nuviocompanion.update.AppUpdater
+import com.homelessbrian.nuviocompanion.update.UpdateBanner
+import com.homelessbrian.nuviocompanion.update.UpdateNotes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -73,6 +76,7 @@ enum class SettingsSection(val label: String, val subtitle: String) {
     LOOK("Drawer look", "Where your apps appear and how they look."),
     APPS("Apps", ""),
     ICONS("Icon pack", "Swap app icons for a pack's matching set."),
+    UPDATES("Updates", "New versions of Nuvio Launch, straight from GitHub."),
     HELP("Help & recovery", "Ways out, and how to start over."),
     ABOUT("About", "")
 }
@@ -82,6 +86,9 @@ enum class SettingsSection(val label: String, val subtitle: String) {
  * first-run setup instead when it hasn't been done yet.
  */
 class MainActivity : ComponentActivity() {
+    /** Set when something (the drawer's update banner) asks an already-open Settings to show a section. */
+    private var jumpTo by mutableStateOf<SettingsSection?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val section = intent.getStringExtra(EXTRA_SECTION)?.let { name -> SettingsSection.entries.firstOrNull { it.name == name } }
@@ -97,6 +104,8 @@ class MainActivity : ComponentActivity() {
                 SettingsScreen(
                     startSection = section ?: SettingsSection.REMOTE,
                     focusPackage = intent.getStringExtra(EXTRA_PACKAGE),
+                    jumpTo = jumpTo,
+                    onJumped = { jumpTo = null },
                     highlight = highlight,
                     onHighlight = {
                         highlight = it
@@ -105,12 +114,38 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+        if (savedInstanceState == null && intent.getBooleanExtra(EXTRA_START_UPDATE, false)) AppUpdater.downloadAndInstall(this)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // "Install" pressed on the drawer's update banner while Settings was already open.
+        if (intent.getBooleanExtra(EXTRA_START_UPDATE, false)) {
+            jumpTo = SettingsSection.UPDATES
+            AppUpdater.downloadAndInstall(this)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        AppUpdater.onResume(this)
     }
 
     companion object {
         const val EXTRA_SECTION = "section"
         const val EXTRA_PACKAGE = "package"
         const val EXTRA_FROM_SETUP = "from_setup"
+        const val EXTRA_START_UPDATE = "start_update"
+
+        /** Opens Settings → Updates and starts downloading the update (used by the drawer's banner). */
+        fun openUpdate(context: Context) {
+            val intent = Intent(context, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                .putExtra(EXTRA_SECTION, SettingsSection.UPDATES.name)
+                .putExtra(EXTRA_START_UPDATE, true)
+            runCatching { context.startActivity(intent) }
+        }
 
         fun open(context: Context, section: SettingsSection? = null, packageName: String? = null) {
             val intent = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -127,6 +162,8 @@ private enum class SubPage { RECORD_PRIMARY, RECORD_SECOND, PRESS_STYLE, CHOOSE_
 private fun SettingsScreen(
     startSection: SettingsSection,
     focusPackage: String?,
+    jumpTo: SettingsSection?,
+    onJumped: () -> Unit,
     highlight: Highlight,
     onHighlight: (Highlight) -> Unit
 ) {
@@ -145,6 +182,14 @@ private fun SettingsScreen(
     LaunchedEffect(Unit) {
         withFrameNanos { }
         if (focusPackage == null) runCatching { navFocus.getValue(section).requestFocus() }
+    }
+    LaunchedEffect(jumpTo) {
+        val target = jumpTo ?: return@LaunchedEffect
+        section = target
+        sub = null
+        onJumped()
+        withFrameNanos { }
+        runCatching { navFocus.getValue(target).requestFocus() }
     }
 
     Row(Modifier.launchBackground()) {
@@ -176,16 +221,26 @@ private fun SettingsScreen(
         Box(Modifier.width(1.dp).fillMaxHeight().background(Color(0x0FFFFFFF)))
 
         // ---- Content -------------------------------------------------------------------------
-        Box(Modifier.weight(1f).fillMaxHeight().padding(start = 56.dp, end = 72.dp, top = 40.dp, bottom = 36.dp)) {
-            when (section) {
+        Column(Modifier.weight(1f).fillMaxHeight().padding(start = 56.dp, end = 72.dp, top = 40.dp, bottom = 36.dp)) {
+            val activity = LocalContext.current as? android.app.Activity
+            if (section != SettingsSection.UPDATES) {
+                UpdateBanner(
+                    modifier = Modifier.padding(start = 6.dp, end = 6.dp, bottom = 18.dp),
+                    onInstall = { activity?.let { AppUpdater.downloadAndInstall(it) } },
+                    onLater = { activity?.let { AppUpdater.snooze(it) } },
+                    onOpenPermission = { activity?.let { AppUpdater.openInstallPermission(it) } }
+                )
+            }
+            Box(Modifier.weight(1f).fillMaxWidth()) { when (section) {
                 SettingsSection.REMOTE -> RemoteSection(sub, resumeTick, onSub = { sub = it })
                 SettingsSection.HOME -> HomeSection(sub, resumeTick, onSub = { sub = it })
                 SettingsSection.LOOK -> LookSection(highlight, onHighlight)
                 SettingsSection.APPS -> AppsSection(resumeTick, focusPackage)
                 SettingsSection.ICONS -> IconPackSection(onOpenApps = { runCatching { navFocus.getValue(SettingsSection.APPS).requestFocus() } })
+                SettingsSection.UPDATES -> UpdatesSection()
                 SettingsSection.HELP -> HelpSection()
                 SettingsSection.ABOUT -> AboutSection()
-            }
+            } }
         }
     }
 }
@@ -891,6 +946,103 @@ private fun IconPackSection(onOpenApps: () -> Unit) {
                 subtitle = "Go to Apps, select an app, then Change icon. You can pick from any installed pack.",
                 onClick = onOpenApps
             )
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Updates
+// ---------------------------------------------------------------------------------------------
+
+@Composable
+private fun UpdatesSection() {
+    val context = LocalContext.current
+    val activity = context as? android.app.Activity
+    val installed = remember { AppUpdater.installedVersion(context) }
+    var auto by remember { mutableStateOf(AppUpdater.autoCheck(context)) }
+    val release = AppUpdater.available
+    val status = AppUpdater.status
+    val lastChecked = AppUpdater.lastChecked
+
+    if (!AppUpdater.supported) {
+        SectionList {
+            item { SectionHeader(SettingsSection.UPDATES.label, SettingsSection.UPDATES.subtitle) }
+            item { SettingRow("Your version", "This is the test copy of Nuvio Launch", value = installed, chevron = false, onClick = {}) }
+            item {
+                NoteBox(
+                    "The test copy doesn't update itself. Install the regular Nuvio Launch once from github.com/homelessbrian/NuvioLaunch/releases, and it will keep itself up to date.",
+                    warning = true
+                )
+            }
+        }
+        return
+    }
+
+    SectionList {
+        item { SectionHeader(SettingsSection.UPDATES.label, SettingsSection.UPDATES.subtitle) }
+        if (release != null) {
+            item {
+                val sizeText = release.sizeBytes.takeIf { it > 0 }?.let { "About ${(it + 524_288) / 1_048_576} MB" }
+                val (title, subtitle, value) = when (status) {
+                    is AppUpdater.Status.Downloading -> Triple(
+                        "Downloading ${release.version}",
+                        "You can keep using your TV. Android asks to install when it's done.",
+                        status.fraction?.let { "${(it * 100).toInt()}%" } ?: "Downloading…"
+                    )
+                    AppUpdater.Status.Ready -> Triple("Install ${release.version}", "Downloaded and ready", "Install now")
+                    AppUpdater.Status.NeedsPermission -> Triple(
+                        "Allow Nuvio Launch to install updates",
+                        "Turn on the switch for Nuvio Launch, then press Back. The update continues by itself.",
+                        "Open setting"
+                    )
+                    AppUpdater.Status.Installing -> Triple("Updating to ${release.version}", "Choose Update (or Install) on the prompt Android shows.", "Waiting")
+                    is AppUpdater.Status.Failed -> Triple("Download & install ${release.version}", status.message, "Try again")
+                    else -> Triple("Download & install ${release.version}", sizeText ?: "A new version is ready", "Start")
+                }
+                SettingRow(
+                    title = title,
+                    subtitle = subtitle,
+                    value = value,
+                    valueColor = if (status is AppUpdater.Status.Failed || status == AppUpdater.Status.NeedsPermission) LaunchColors.WarnText else LocalHighlight.current,
+                    onClick = {
+                        val a = activity ?: return@SettingRow
+                        if (status == AppUpdater.Status.NeedsPermission) AppUpdater.openInstallPermission(a) else AppUpdater.downloadAndInstall(a)
+                    }
+                )
+            }
+            if (release.notes.isNotBlank()) {
+                item { SmallLabel("What's new in ${release.version}") }
+                item { UpdateNotes(release.notes) }
+            }
+        }
+        item {
+            val checkedText = when {
+                status == AppUpdater.Status.Checking -> "Checking GitHub…"
+                AppUpdater.lastCheckFailed -> "Couldn't reach GitHub. Check the TV's internet."
+                lastChecked > 0 -> "Last checked " + android.text.format.DateUtils.getRelativeTimeSpanString(lastChecked, System.currentTimeMillis(), android.text.format.DateUtils.MINUTE_IN_MILLIS)
+                else -> "Not checked yet"
+            }
+            SettingRow(
+                title = "Check for updates",
+                subtitle = "You have version $installed · $checkedText",
+                value = when {
+                    status == AppUpdater.Status.Checking -> "Checking…"
+                    release != null -> "${release.version} available"
+                    lastChecked > 0 && !AppUpdater.lastCheckFailed -> "Up to date"
+                    else -> null
+                },
+                valueColor = if (release == null && lastChecked > 0) LaunchColors.Good else null,
+                onClick = { AppUpdater.checkNow(context) }
+            )
+        }
+        item {
+            ToggleRow("Check automatically", "Looks every few hours and shows a banner when there's an update", auto) {
+                auto = it
+                AppUpdater.setAutoCheck(context, it)
+            }
+        }
+        item {
+            NoteBox("Updates come from github.com/homelessbrian/NuvioLaunch/releases. The first time, Android asks you to let Nuvio Launch install apps. That's how it installs its own updates.")
         }
     }
 }

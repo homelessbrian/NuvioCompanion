@@ -94,6 +94,8 @@ import com.homelessbrian.nuviocompanion.SystemShortcuts
 import com.homelessbrian.nuviocompanion.designScale
 import com.homelessbrian.nuviocompanion.remote.RemoteKeyAccessibilityService
 import com.homelessbrian.nuviocompanion.tvClick
+import com.homelessbrian.nuviocompanion.update.AppUpdater
+import com.homelessbrian.nuviocompanion.update.UpdateBanner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -209,6 +211,10 @@ object DrawerOverlayService {
                             onSettings = {
                                 close()
                                 MainActivity.open(service, SettingsSection.LOOK)
+                            },
+                            onUpdate = {
+                                close()
+                                MainActivity.openUpdate(service)
                             }
                         )
                     }
@@ -225,6 +231,7 @@ object DrawerOverlayService {
             val addedView = composeView
             addedView.post { runCatching { addedView.requestFocusFromTouch() } }
             report(service, "Drawer opened.")
+            AppUpdater.maybeCheck(service)
         } catch (error: Throwable) {
             composeView?.let { view -> runCatching { wm?.removeView(view) } }
             lifecycleOwner?.destroy()
@@ -248,7 +255,8 @@ object DrawerOverlayService {
         onClose: () -> Unit,
         onLaunch: (String) -> Unit,
         onChangeIcon: (String) -> Unit,
-        onSettings: () -> Unit
+        onSettings: () -> Unit,
+        onUpdate: () -> Unit
     ) {
         val hiddenAtOpen = remember { DrawerSettings.hidden(context) }
         var apps by remember { mutableStateOf(AppCatalog.cached().filterNot { it.packageName in hiddenAtOpen }) }
@@ -303,6 +311,17 @@ object DrawerOverlayService {
         }
         val items = visibleApps + shortcuts
         val shape = RoundedCornerShape(28.dp)
+        // Slim "Update available" strip at the top of the drawer. Shows nothing when up to date.
+        val updateBanner: @Composable (Modifier) -> Unit = { mod ->
+            UpdateBanner(
+                modifier = mod,
+                compact = true,
+                stacked = position == DrawerPosition.LEFT || position == DrawerPosition.RIGHT,
+                onInstall = onUpdate,
+                onLater = { AppUpdater.snooze(context) },
+                onOpenPermission = onUpdate
+            )
+        }
 
         val tileFor: @Composable (Int, InstalledApp, TileStyle) -> Unit = { index, app, style ->
             DrawerTile(
@@ -353,6 +372,7 @@ object DrawerOverlayService {
                             options = null
                         }, onIcon = { onChangeIcon(current.packageName) }, onCancel = { options = null })
                     } else {
+                        updateBanner(Modifier.padding(start = 6.dp, end = 2.dp, top = 2.dp, bottom = 8.dp))
                         // The app you're on, small key hints, and a way to Settings (press Up).
                         Row(Modifier.fillMaxWidth().padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(
@@ -400,6 +420,7 @@ object DrawerOverlayService {
                             options = null
                         }, onIcon = { onChangeIcon(current.packageName) }, onCancel = { options = null })
                     } else {
+                        updateBanner(Modifier.padding(bottom = 8.dp))
                         LazyColumn(
                             Modifier.weight(1f).fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(if (showNames) 6.dp else 20.dp),
@@ -436,6 +457,7 @@ object DrawerOverlayService {
                             options = null
                         }, onIcon = { onChangeIcon(current.packageName) }, onCancel = { options = null })
                     } else {
+                        updateBanner(Modifier)
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text("Apps", color = LaunchColors.Text, fontSize = 28.sp, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.width(22.dp))
