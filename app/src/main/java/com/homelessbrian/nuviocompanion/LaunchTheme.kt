@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -60,6 +61,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** Colors from the face-lift mockups. Dark, neutral, with one highlight color chosen by the user. */
 object LaunchColors {
@@ -101,6 +104,9 @@ enum class Highlight(val label: String, val color: Color) {
         fun fromName(name: String?): Highlight = entries.firstOrNull { it.name == name } ?: WHITE
     }
 }
+
+/** Focus grow / glow timing: a quick snap rather than a slow spring, so it keeps up with the remote. */
+val FocusSnap = androidx.compose.animation.core.tween<Float>(durationMillis = 110)
 
 val LocalHighlight = staticCompositionLocalOf { Highlight.WHITE.color }
 
@@ -204,7 +210,7 @@ fun FocusCard(
     content: @Composable BoxScope.(focused: Boolean) -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (focused) scaleOnFocus else 1f, label = "cardFocus")
+    val scale by animateFloatAsState(if (focused) scaleOnFocus else 1f, FocusSnap, label = "cardFocus")
     val ring = LocalHighlight.current
     Box(
         modifier
@@ -424,7 +430,12 @@ fun NoteBox(text: String, warning: Boolean = false, modifier: Modifier = Modifie
  */
 @Composable
 fun AppArt(app: InstalledApp, modifier: Modifier, corner: Dp = 12.dp) {
-    val bitmap = remember(app.icon) { app.icon.toImageBitmapSafe(if (app.isTvBanner) 480 else 192) }
+    // Prepared images are kept, so reopening the drawer doesn't redo them. A missing one is
+    // made in the background instead of holding up the remote.
+    val artState = produceState(AppArtCache.cached(app), AppArtCache.keyFor(app)) {
+        value = AppArtCache.cached(app) ?: withContext(Dispatchers.Default) { AppArtCache.prepare(app) }
+    }
+    val bitmap = artState.value
     Box(modifier.clip(RoundedCornerShape(corner)).background(if (app.isTvBanner) LaunchColors.Tile else Color(0xFF1C1C22)), contentAlignment = Alignment.Center) {
         if (bitmap != null) {
             Image(
@@ -437,6 +448,31 @@ fun AppArt(app: InstalledApp, modifier: Modifier, corner: Dp = 12.dp) {
             Text(app.label.take(1), color = LaunchColors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         }
     }
+}
+
+/**
+ * App artwork already turned into images, by app and icon. [AppCatalog.load] fills it in the
+ * background so the drawer can draw every tile straight away.
+ */
+object AppArtCache {
+    private val cache = object : android.util.LruCache<String, ImageBitmap>(400) {}
+
+    fun keyFor(app: InstalledApp): String =
+        if (app.artKey.isNotEmpty()) "${app.packageName}|${app.artKey}"
+        else "${app.packageName}|id${System.identityHashCode(app.icon)}"
+
+    fun cached(app: InstalledApp): ImageBitmap? = cache.get(keyFor(app))
+
+    /** Makes (or returns) the image for [app]. Call off the main thread. */
+    fun prepare(app: InstalledApp): ImageBitmap? {
+        val key = keyFor(app)
+        cache.get(key)?.let { return it }
+        val made = synchronized(app.icon) { app.icon.toImageBitmapSafe(if (app.isTvBanner) 480 else 192) } ?: return null
+        cache.put(key, made)
+        return made
+    }
+
+    fun clear() = cache.evictAll()
 }
 
 /** Converts a drawable to a bitmap no larger than [maxSize] on its long side, keeping its shape. */

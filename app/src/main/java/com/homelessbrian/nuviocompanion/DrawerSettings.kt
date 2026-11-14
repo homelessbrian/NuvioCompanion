@@ -25,6 +25,17 @@ object DrawerSettings {
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    /** Calls [onChange] whenever any setting changes. Keep the returned listener to stop listening. */
+    fun listen(context: Context, onChange: () -> Unit): android.content.SharedPreferences.OnSharedPreferenceChangeListener {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> onChange() }
+        prefs(context).registerOnSharedPreferenceChangeListener(listener)
+        return listener
+    }
+
+    fun stopListening(context: Context, listener: android.content.SharedPreferences.OnSharedPreferenceChangeListener) {
+        prefs(context).unregisterOnSharedPreferenceChangeListener(listener)
+    }
+
     // ---- Setup -------------------------------------------------------------------------------
     fun setupDone(context: Context) = prefs(context).getBoolean("setup_done", false)
     fun setSetupDone(context: Context, value: Boolean) { prefs(context).edit().putBoolean("setup_done", value).apply() }

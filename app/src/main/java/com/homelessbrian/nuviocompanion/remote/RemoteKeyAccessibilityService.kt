@@ -23,6 +23,29 @@ class RemoteKeyAccessibilityService : AccessibilityService() {
     private val downKeys = mutableSetOf<Int>()
     private val consumedKeys = mutableSetOf<Int>()
 
+    // Every button press on the TV passes through here, so the button settings are kept in
+    // memory and refreshed only when a setting changes, instead of being looked up each press.
+    private var recording = false
+    private var recordingSecond = false
+    private var primaryKey = 0
+    private var secondKey = 0
+    private var mode = ShortcutMode.SINGLE
+    private var settingsListener: android.content.SharedPreferences.OnSharedPreferenceChangeListener? = null
+
+    private fun reloadSettings() {
+        recording = DrawerSettings.isRecording(this)
+        recordingSecond = DrawerSettings.recordingTarget(this) == "secondary"
+        primaryKey = DrawerSettings.keyCode(this)
+        secondKey = DrawerSettings.secondKeyCode(this)
+        mode = DrawerSettings.shortcutMode(this)
+    }
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        reloadSettings()
+        settingsListener = DrawerSettings.listen(this) { reloadSettings() }
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
     override fun onInterrupt() { resetGesture() }
 
@@ -31,7 +54,7 @@ class RemoteKeyAccessibilityService : AccessibilityService() {
         // configured shortcut or left for the overlay's focused child to ignore.
         if (DrawerOverlayService.handleBackKey(event)) return true
 
-        if (DrawerSettings.isRecording(this)) {
+        if (recording) {
             // Back, Home, OK and the arrows keep working so the remote can still be used.
             if (event.keyCode in KeyNames.blocked) {
                 if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
@@ -43,9 +66,11 @@ class RemoteKeyAccessibilityService : AccessibilityService() {
             }
             if (event.action == KeyEvent.ACTION_DOWN) {
                 if (event.repeatCount == 0) {
-                    if (DrawerSettings.recordingTarget(this) == "secondary") DrawerSettings.setSecondKeyCode(this, event.keyCode)
+                    if (recordingSecond) DrawerSettings.setSecondKeyCode(this, event.keyCode)
                     else DrawerSettings.setKeyCode(this, event.keyCode)
                     DrawerSettings.setRecording(this, false)
+                    // Don't wait for the change notice: the next press must already use the new button.
+                    recording = false
                     consumedKeys.add(event.keyCode)
                     sendBroadcast(Intent(ACTION_SHORTCUT_RECORDED).setPackage(packageName))
                 }
@@ -55,9 +80,9 @@ class RemoteKeyAccessibilityService : AccessibilityService() {
             return false
         }
 
-        val primary = DrawerSettings.keyCode(this)
-        val mode = DrawerSettings.shortcutMode(this)
-        val second = DrawerSettings.secondKeyCode(this)
+        val primary = primaryKey
+        val mode = this.mode
+        val second = secondKey
         val isMappedKey = event.keyCode == primary ||
             (mode == ShortcutMode.COMBINATION && second != 0 && event.keyCode == second)
 
@@ -149,6 +174,8 @@ class RemoteKeyAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        settingsListener?.let { DrawerSettings.stopListening(this, it) }
+        settingsListener = null
         DrawerOverlayService.close()
         resetGesture()
         super.onDestroy()

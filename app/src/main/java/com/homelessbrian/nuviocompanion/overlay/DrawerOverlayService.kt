@@ -75,6 +75,8 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.homelessbrian.nuviocompanion.AppArt
+import com.homelessbrian.nuviocompanion.AppArtCache
+import com.homelessbrian.nuviocompanion.FocusSnap
 import com.homelessbrian.nuviocompanion.AppCatalog
 import com.homelessbrian.nuviocompanion.DrawerPosition
 import com.homelessbrian.nuviocompanion.DrawerSettings
@@ -266,9 +268,16 @@ object DrawerOverlayService {
 
         // Show the last list straight away, then refresh it (new installs, icon changes).
         LaunchedEffect(Unit) {
-            val (fresh, tiles) = withContext(Dispatchers.IO) { AppCatalog.load(context) to SystemShortcuts.tiles(context) }
-            apps = fresh
-            shortcuts = tiles
+            val (fresh, tiles) = withContext(Dispatchers.IO) {
+                val list = AppCatalog.load(context)
+                val extra = SystemShortcuts.tiles(context)
+                extra.forEach { AppArtCache.prepare(it) }
+                list to extra
+            }
+            // Only redraw the tiles when something actually changed (new app, new icon, new name).
+            fun fingerprint(list: List<InstalledApp>) = list.map { Triple(it.packageName, it.label, it.artKey) }
+            if (fingerprint(fresh) != fingerprint(apps)) apps = fresh
+            if (shortcuts.isEmpty() || fingerprint(tiles) != fingerprint(shortcuts)) shortcuts = tiles
         }
         // Take the remote's focus. A freshly added window can start in "touch mode", where TV
         // tiles can't be focused, so leave touch mode first and keep trying for a few frames.
@@ -393,8 +402,10 @@ object DrawerOverlayService {
                     } else {
                         LazyColumn(
                             Modifier.weight(1f).fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                            contentPadding = PaddingValues(vertical = 4.dp, horizontal = 4.dp)
+                            verticalArrangement = Arrangement.spacedBy(if (showNames) 6.dp else 20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            // Without names the tiles grow and glow, so leave room around them.
+                            contentPadding = if (showNames) PaddingValues(vertical = 4.dp, horizontal = 4.dp) else PaddingValues(vertical = 18.dp, horizontal = 4.dp)
                         ) {
                             listItemsIndexed(visibleApps, key = { _, app -> app.packageName }) { index, app ->
                                 tileFor(index, app, TileStyle.RAIL)
@@ -480,20 +491,23 @@ object DrawerOverlayService {
         var focused by remember { mutableStateOf(false) }
         val highlight = LocalHighlight.current
         // The focused app grows a little and glows in the chosen highlight color.
-        val scale by animateFloatAsState(if (focused && style != TileStyle.RAIL) 1.12f else 1f, label = "tile")
-        val glowAmount by animateFloatAsState(if (focused) 1f else 0f, label = "glow")
-        val (artWidth, artHeight) = when (style) {
+        // The side rail with names off is just artwork, so it highlights like the other styles.
+        val railArtOnly = style == TileStyle.RAIL && !showName
+        val listRow = style == TileStyle.RAIL && showName
+        val scale by animateFloatAsState(if (focused && !listRow) 1.12f else 1f, FocusSnap, label = "tile")
+        val glowAmount by animateFloatAsState(if (focused) 1f else 0f, FocusSnap, label = "glow")
+        val (artWidth, artHeight) = if (railArtOnly) 176.dp to 99.dp else when (style) {
             TileStyle.DOCK -> 150.dp to 84.dp
             TileStyle.DOCK_SQUARE -> 84.dp to 84.dp
             TileStyle.RAIL -> 96.dp to 54.dp
             TileStyle.GRID -> 164.dp to 92.dp
         }
-        val corner = if (style == TileStyle.RAIL) 9.dp else 14.dp
+        val corner = if (listRow) 9.dp else 14.dp
         val art: @Composable () -> Unit = {
             Box(
                 Modifier.graphicsLayer { scaleX = scale; scaleY = scale }
-                    .then(if (glow && style != TileStyle.RAIL) Modifier.focusGlow(highlight, corner, glowAmount) else Modifier)
-                    .then(if (focused && style != TileStyle.RAIL) Modifier.border(3.dp, highlight, RoundedCornerShape(corner)) else Modifier)
+                    .then(if (glow && !listRow) Modifier.focusGlow(highlight, corner, glowAmount) else Modifier)
+                    .then(if (focused && !listRow) Modifier.border(3.dp, highlight, RoundedCornerShape(corner)) else Modifier)
             ) {
                 if (showArt || SystemShortcuts.isShortcut(app.packageName)) {
                     AppArt(app, Modifier.width(artWidth).height(artHeight), corner)
@@ -520,8 +534,8 @@ object DrawerOverlayService {
             }
             .tvClick(onClick, onLongClick)
 
-        when (style) {
-            TileStyle.RAIL -> Row(
+        when {
+            listRow -> Row(
                 clickModifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
                     .background(if (focused) LaunchColors.Text else Color.Transparent)
                     .then(if (focused) Modifier.border(3.dp, highlight, RoundedCornerShape(16.dp)) else Modifier)

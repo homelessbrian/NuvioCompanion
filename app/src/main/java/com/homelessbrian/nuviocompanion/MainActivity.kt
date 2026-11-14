@@ -502,7 +502,7 @@ private fun LookSection(highlight: Highlight, onHighlight: (Highlight) -> Unit) 
             }
         }
         item { DrawerPreview(position, showNames, Modifier.widthIn(max = 620.dp)) }
-        item { ToggleRow("Show app names", "Names under every app, not just the one you're on", showNames) { showNames = it; DrawerSettings.setShowNames(context, it) } }
+        item { ToggleRow("Show app names", "Names under every app in the drawer. Off hides them all.", showNames) { showNames = it; DrawerSettings.setShowNames(context, it) } }
         item { ToggleRow("Show app artwork", "Turn off for a names-only list", showIcons) { showIcons = it; DrawerSettings.setShowIcons(context, it) } }
         item { ToggleRow("Glow on the focused app", null, glow) { glow = it; DrawerSettings.setFocusGlow(context, it) } }
         item { ToggleRow("Blur behind", "Softens whatever is on screen behind the drawer (Android 12 and newer)", blur) { blur = it; DrawerSettings.setBlurBehind(context, it) } }

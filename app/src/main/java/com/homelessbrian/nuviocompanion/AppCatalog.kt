@@ -12,7 +12,9 @@ data class InstalledApp(
     val icon: Drawable,
     val isTvBanner: Boolean = false,
     /** Where the icon came from, shown in Settings → Apps. */
-    val iconSource: String = ""
+    val iconSource: String = "",
+    /** Changes only when the app's artwork could change (app updated, icon pack or icon choice changed). */
+    val artKey: String = ""
 )
 
 object AppCatalog {
@@ -42,6 +44,9 @@ object AppCatalog {
         val found = linkedMapOf<String, InstalledApp>()
         val selectedPack = DrawerSettings.iconPack(context)
         val overrides = DrawerSettings.appIconOverrides(context)
+        val packUpdated = selectedPack?.let { pack ->
+            runCatching { pm.getPackageInfo(pack, 0).lastUpdateTime }.getOrNull()
+        } ?: 0L
         val packLabel = selectedPack?.let { pack ->
             runCatching { pm.getApplicationLabel(pm.getApplicationInfo(pack, 0)).toString() }.getOrNull()
         }
@@ -77,14 +82,18 @@ object AppCatalog {
                 override == DrawerSettings.ICON_APP_OWN -> "App's own icon"
                 else -> ""
             }
+            val updated = runCatching { pm.getPackageInfo(packageName, 0).lastUpdateTime }.getOrDefault(0L)
             found[packageName] = InstalledApp(
                 label = label,
                 packageName = packageName,
                 icon = chosen,
                 isTvBanner = packIcon == null && banner != null,
-                iconSource = source
+                iconSource = source,
+                artKey = "$updated|${selectedPack.orEmpty()}@$packUpdated|${override.orEmpty()}|${DrawerSettings.matchAllIcons(context)}"
             )
         }
+        // Get every tile's image ready here, in the background, so the drawer never waits on it.
+        found.values.forEach { AppArtCache.prepare(it) }
 
         val sorted = sort(context, found.values.toList())
         lastLoaded = sorted
