@@ -321,7 +321,6 @@ private fun HomeScreen(
             else HomeActionTile("Send Home to Nuvio", Modifier.weight(1f), onSendHomeToNuvio)
         }
 
-        Text("Your apps", color = LaunchColors.Muted, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp)

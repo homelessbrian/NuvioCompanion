@@ -381,17 +381,18 @@ fun LaunchMark(size: Dp = 36.dp, arrowColor: Color = LocalHighlight.current) {
 
 /** "OK select · Back previous step" hints at the bottom of pages. */
 @Composable
-fun KeyHints(vararg hints: Pair<String, String>) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+fun KeyHints(vararg hints: Pair<String, String>, small: Boolean = false) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (small) 6.dp else 10.dp)) {
         hints.forEachIndexed { index, (key, action) ->
-            if (index > 0) Spacer(Modifier.width(6.dp))
+            if (index > 0) Spacer(Modifier.width(if (small) 4.dp else 6.dp))
             Text(
                 key,
                 color = LaunchColors.TextSoft,
-                fontSize = 14.sp,
-                modifier = Modifier.border(1.dp, Color(0xFF3F3F46), RoundedCornerShape(6.dp)).padding(horizontal = 9.dp, vertical = 3.dp)
+                fontSize = if (small) 11.sp else 14.sp,
+                modifier = Modifier.border(1.dp, Color(0xFF3F3F46), RoundedCornerShape(if (small) 4.dp else 6.dp))
+                    .padding(horizontal = if (small) 6.dp else 9.dp, vertical = if (small) 1.dp else 3.dp)
             )
-            Text(action, color = LaunchColors.Faint, fontSize = 15.sp)
+            Text(action, color = LaunchColors.Faint, fontSize = if (small) 12.sp else 15.sp)
         }
     }
 }

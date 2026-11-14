@@ -43,6 +43,14 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -154,7 +162,8 @@ object DrawerOverlayService {
                 DrawerPosition.LEFT, DrawerPosition.RIGHT -> x = px(36f)
                 DrawerPosition.CENTER -> Unit
             }
-            dimAmount = if (position == DrawerPosition.CENTER) 0.62f else 0.45f
+            // Darker behind the drawer so the app underneath (and its own highlight) fades back.
+            dimAmount = if (position == DrawerPosition.CENTER) 0.72f else 0.62f
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && DrawerSettings.blurBehind(context)) {
                 flags = flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
                 blurBehindRadius = px(28f)
@@ -210,6 +219,9 @@ object DrawerOverlayService {
             owner = lifecycleOwner
             windowManager = wm
             composeView.requestFocus()
+            // Leave "touch mode" so the remote can focus the drawer's tiles on the very first open.
+            val addedView = composeView
+            addedView.post { runCatching { addedView.requestFocusFromTouch() } }
             report(service, "Drawer opened.")
         } catch (error: Throwable) {
             composeView?.let { view -> runCatching { wm?.removeView(view) } }
@@ -248,6 +260,9 @@ object DrawerOverlayService {
         val opacity = remember { DrawerSettings.opacity(context) }
         val firstTile = remember { FocusRequester() }
         val firstOption = remember { FocusRequester() }
+        val view = LocalView.current
+        var focusedLabel by remember { mutableStateOf<String?>(null) }
+        var drawerHasFocus by remember { mutableStateOf(false) }
 
         // Show the last list straight away, then refresh it (new installs, icon changes).
         LaunchedEffect(Unit) {
@@ -255,9 +270,15 @@ object DrawerOverlayService {
             apps = fresh
             shortcuts = tiles
         }
+        // Take the remote's focus. A freshly added window can start in "touch mode", where TV
+        // tiles can't be focused, so leave touch mode first and keep trying for a few frames.
         LaunchedEffect(apps.isNotEmpty() || shortcuts.isNotEmpty()) {
-            withFrameNanos { }
-            runCatching { firstTile.requestFocus() }
+            runCatching { view.requestFocusFromTouch() }
+            repeat(12) {
+                withFrameNanos { }
+                if (drawerHasFocus || options != null) return@LaunchedEffect
+                runCatching { firstTile.requestFocus() }
+            }
         }
         LaunchedEffect(options) {
             setBackInterceptor(if (options != null) ({ options = null; true }) else null)
@@ -282,6 +303,7 @@ object DrawerOverlayService {
                 showArt = showIcons,
                 glow = glow,
                 modifier = if (index == 0) Modifier.focusRequester(firstTile) else Modifier,
+                onFocused = { focusedLabel = app.label },
                 onClick = { onLaunch(app.packageName) },
                 onLongClick = if (SystemShortcuts.isShortcut(app.packageName)) null else ({ options = app })
             )
@@ -294,12 +316,23 @@ object DrawerOverlayService {
                 .clip(shape)
                 .background(Color(0xFF16161C).copy(alpha = opacity))
                 .border(1.dp, Color(0x1FFFFFFF), shape)
+                .onFocusChanged { drawerHasFocus = it.hasFocus }
+                // If nothing in the drawer has focus yet, the first remote press lands on the first app.
+                .onPreviewKeyEvent { event ->
+                    val code = event.nativeKeyEvent.keyCode
+                    val navKey = code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT ||
+                        code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN ||
+                        code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER
+                    if (!drawerHasFocus && navKey && options == null) {
+                        if (event.type == KeyEventType.KeyDown) runCatching { firstTile.requestFocus() }
+                        true
+                    } else false
+                }
         ) {
             val current = options
             when (position) {
                 DrawerPosition.BOTTOM, DrawerPosition.TOP -> Column(
-                    Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 18.dp, bottom = 22.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    Modifier.fillMaxWidth().padding(start = 14.dp, end = 18.dp, top = 12.dp, bottom = 4.dp)
                 ) {
                     if (current != null) {
                         OptionsBar(current, favorites, firstOption, onFavorite = {
@@ -311,21 +344,33 @@ object DrawerOverlayService {
                             options = null
                         }, onIcon = { onChangeIcon(current.packageName) }, onCancel = { options = null })
                     } else {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Your apps", color = LaunchColors.TextSoft, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                            Spacer(Modifier.weight(1f))
-                            KeyHints("Back" to "close", "Hold OK" to "options")
+                        // The app you're on, small key hints, and a way to Settings (press Up).
+                        Row(Modifier.fillMaxWidth().padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                // Only with "Show app names" on.
+                                if (showNames) focusedLabel.orEmpty() else "",
+                                color = LaunchColors.Text,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            KeyHints("Back" to "close", "Hold OK" to "options", small = true)
+                            Spacer(Modifier.width(14.dp))
+                            HeaderButton("Settings", onSettings)
                         }
                     }
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        verticalAlignment = Alignment.Bottom,
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(18.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        // Room around the tiles for the focused one to grow and glow.
+                        contentPadding = PaddingValues(horizontal = 22.dp, vertical = 18.dp)
                     ) {
                         listItemsIndexed(items, key = { _, app -> app.packageName }) { index, app ->
-                            Row(verticalAlignment = Alignment.Bottom) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 if (app.packageName == shortcuts.firstOrNull()?.packageName && visibleApps.isNotEmpty()) {
-                                    Box(Modifier.padding(end = 14.dp, bottom = 30.dp).width(1.dp).height(70.dp).background(Color(0x24FFFFFF)))
+                                    Box(Modifier.padding(end = 18.dp).width(1.dp).height(60.dp).background(Color(0x24FFFFFF)))
                                 }
                                 tileFor(index, app, if (SystemShortcuts.isShortcut(app.packageName)) TileStyle.DOCK_SQUARE else TileStyle.DOCK)
                             }
@@ -346,7 +391,6 @@ object DrawerOverlayService {
                             options = null
                         }, onIcon = { onChangeIcon(current.packageName) }, onCancel = { options = null })
                     } else {
-                        Text("Your apps", color = LaunchColors.TextSoft, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 12.dp, bottom = 10.dp))
                         LazyColumn(
                             Modifier.weight(1f).fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -395,7 +439,7 @@ object DrawerOverlayService {
                         columns = GridCells.Fixed(5),
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                         verticalArrangement = Arrangement.spacedBy(18.dp),
-                        contentPadding = PaddingValues(8.dp)
+                        contentPadding = PaddingValues(18.dp)
                     ) {
                         itemsIndexed(items, key = { _, app -> app.packageName }) { index, app ->
                             tileFor(index, app, TileStyle.GRID)
@@ -429,13 +473,15 @@ object DrawerOverlayService {
         showArt: Boolean,
         glow: Boolean,
         modifier: Modifier,
+        onFocused: () -> Unit,
         onClick: () -> Unit,
         onLongClick: (() -> Unit)?
     ) {
         var focused by remember { mutableStateOf(false) }
         val highlight = LocalHighlight.current
-        val scale by animateFloatAsState(if (focused && style != TileStyle.RAIL) 1.08f else 1f, label = "tile")
-        val ring = if (glow) highlight else Color.White
+        // The focused app grows a little and glows in the chosen highlight color.
+        val scale by animateFloatAsState(if (focused && style != TileStyle.RAIL) 1.12f else 1f, label = "tile")
+        val glowAmount by animateFloatAsState(if (focused) 1f else 0f, label = "glow")
         val (artWidth, artHeight) = when (style) {
             TileStyle.DOCK -> 150.dp to 84.dp
             TileStyle.DOCK_SQUARE -> 84.dp to 84.dp
@@ -446,8 +492,8 @@ object DrawerOverlayService {
         val art: @Composable () -> Unit = {
             Box(
                 Modifier.graphicsLayer { scaleX = scale; scaleY = scale }
-                    .then(if (focused) Modifier.shadow(14.dp, RoundedCornerShape(corner), clip = false) else Modifier)
-                    .then(if (focused && style != TileStyle.RAIL) Modifier.border(4.dp, ring, RoundedCornerShape(corner)) else Modifier)
+                    .then(if (glow && style != TileStyle.RAIL) Modifier.focusGlow(highlight, corner, glowAmount) else Modifier)
+                    .then(if (focused && style != TileStyle.RAIL) Modifier.border(3.dp, highlight, RoundedCornerShape(corner)) else Modifier)
             ) {
                 if (showArt || SystemShortcuts.isShortcut(app.packageName)) {
                     AppArt(app, Modifier.width(artWidth).height(artHeight), corner)
@@ -460,21 +506,25 @@ object DrawerOverlayService {
             Text(
                 app.label,
                 color = if (style == TileStyle.RAIL && focused) LaunchColors.OnFocus else if (focused) LaunchColors.Text else LaunchColors.Muted,
-                fontSize = if (style == TileStyle.RAIL) 18.sp else 15.sp,
-                fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+                fontSize = if (style == TileStyle.RAIL) 18.sp else 13.sp,
+                fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Normal,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = if (style == TileStyle.RAIL) TextAlign.Start else TextAlign.Center
             )
         }
         val clickModifier = modifier
-            .onFocusChanged { focused = it.isFocused }
+            .onFocusChanged {
+                if (it.isFocused && !focused) onFocused()
+                focused = it.isFocused
+            }
             .tvClick(onClick, onLongClick)
 
         when (style) {
             TileStyle.RAIL -> Row(
                 clickModifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
                     .background(if (focused) LaunchColors.Text else Color.Transparent)
+                    .then(if (focused) Modifier.border(3.dp, highlight, RoundedCornerShape(16.dp)) else Modifier)
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
@@ -483,16 +533,45 @@ object DrawerOverlayService {
                 label(focused)
             }
             else -> Column(
-                clickModifier.width(artWidth).padding(top = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                clickModifier.width(artWidth),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 art()
-                // The focused app always shows its name; others only with "Show app names" on.
-                Box(Modifier.height(24.dp).padding(top = 4.dp), contentAlignment = Alignment.Center) {
-                    if (focused || showName || style == TileStyle.GRID) label(focused)
+                // Names only with "Show app names" on. No empty space is kept for them otherwise.
+                if (showName) {
+                    Box(Modifier.padding(top = 10.dp).height(18.dp), contentAlignment = Alignment.Center) { label(focused) }
                 }
             }
+        }
+    }
+
+    /** A soft halo in the highlight color around the focused tile, fading out from its edge. */
+    private fun Modifier.focusGlow(color: Color, corner: Dp, amount: Float): Modifier = drawBehind {
+        if (amount <= 0f) return@drawBehind
+        val steps = 6
+        val reach = 12.dp.toPx()
+        for (i in steps downTo 1) {
+            val grow = reach * i / steps
+            drawRoundRect(
+                color = color.copy(alpha = 0.085f * amount),
+                topLeft = Offset(-grow, -grow),
+                size = Size(size.width + grow * 2, size.height + grow * 2),
+                cornerRadius = CornerRadius(corner.toPx() + grow)
+            )
+        }
+    }
+
+    /** Small pill in the drawer header ("Settings"). */
+    @Composable
+    private fun HeaderButton(label: String, onClick: () -> Unit) {
+        FocusCard(shape = RoundedCornerShape(999.dp), idle = LaunchColors.Raised, scaleOnFocus = 1.06f, onClick = onClick) { focused ->
+            Text(
+                label,
+                color = if (focused) LaunchColors.OnFocus else LaunchColors.TextSoft,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 5.dp)
+            )
         }
     }
 

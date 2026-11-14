@@ -96,21 +96,30 @@ object IconPackManager {
             val res = resources(context, pack)
                 ?: return IconPackCatalog(emptyList(), emptyList(), "This icon pack is no longer installed.")
 
-            var raw = openPackXml(context, pack, res, "drawable")?.let { parser ->
+            // 1. The pack's own icon list. Packs made from the Blueprint template often still ship
+            //    the template's sample list (a handful of colored shapes), so those names are dropped.
+            val listed = openPackXml(context, pack, res, "drawable")?.let { parser ->
                 try { readDrawableList(parser) } finally { closeParser(parser) }
-            }.orEmpty()
+            }.orEmpty().filterNot { it.first in TEMPLATE_SAMPLES }
 
-            // Plenty of packs only ship appfilter.xml. Use the icons it names instead.
-            if (raw.isEmpty()) {
-                raw = appMappings(context, pack).values.distinct().map { it to "" }
-            }
-            if (raw.isEmpty()) {
+            // 2. Every icon the pack assigns to an app. Plenty of packs only fill in this file.
+            val mapped = appMappings(context, pack).values.distinct().map { it to "" }
+
+            val raw = (listed + mapped).distinctBy { it.first }
+            val entries = raw.mapNotNull { (name, category) ->
+                val id = resolveId(res, pack, name)
+                if (id == 0) null else IconPackEntry(name, category, id)
+            }.toMutableList()
+
+            // 3. Icons in the pack that neither file mentions, so the full set is always there.
+            val known = entries.mapTo(HashSet()) { it.drawableName }
+            entries += scanDrawables(context, res, pack, entries.map { it.resId })
+                .filter { (name, _) -> name !in known && looksLikeIcon(name) }
+                .map { (name, id) -> IconPackEntry(name, "", id) }
+
+            if (entries.isEmpty() && raw.isEmpty()) {
                 IconPackCatalog(emptyList(), emptyList(), "This icon pack doesn't list its icons in a way Nuvio Launch can read.")
             } else {
-                val entries = raw.distinctBy { it.first }.mapNotNull { (name, category) ->
-                    val id = resolveId(res, pack, name)
-                    if (id == 0) null else IconPackEntry(name, category, id)
-                }
                 if (entries.isEmpty()) {
                     IconPackCatalog(emptyList(), emptyList(), "This icon pack lists ${raw.size} icons, but none of them could be loaded.")
                 } else {
@@ -293,6 +302,48 @@ object IconPackManager {
         bitmapCache.put(key, bitmap)
         return bitmap
     }
+
+    /** Sample names from the Blueprint icon pack template's drawable.xml. They are placeholder shapes, not app icons. */
+    private val TEMPLATE_SAMPLES = setOf(
+        "an_icon", "andy", "another_icon", "icon_one", "icon_with_a_long_name", "icons_everywhere",
+        "second_icon", "this_is_an_icon", "a_better_camera", "aa", "acdisplay", "adaway",
+        "adobe_creative_cloud", "afterfocus", "afterlight", "airdroid", "alarmpad"
+    )
+
+    /** Name starts of images that belong to the pack's own screens or to Android libraries, not icons. */
+    private val NOT_ICON_PREFIXES = listOf(
+        "$", "abc_", "mtrl_", "m3_", "material_", "design_", "btn_", "ic_", "notification_", "notify_",
+        "common_", "googleg_", "avd_", "tooltip_", "test_", "exo_", "preference_", "fastscroll", "navigation_",
+        "bottom_", "splash", "gradient", "menu_background", "drawer_", "muzei", "fetch_", "adaptive_",
+        "wallpapers_", "indeterminate", "app_splash", "selector_", "ripple_", "shape_", "bg_", "dialog_",
+        "tab_", "toolbar", "scrollbar", "card_", "quantum_", "ic_launcher", "iconback", "iconmask", "iconupon"
+    )
+    private val NOT_ICON_SUFFIXES = listOf("_bg", "_fg", "_foreground", "_background", "_states", "_selector", "_ripple", "_monochrome")
+
+    private fun looksLikeIcon(name: String): Boolean =
+        name.length >= 2 && name !in TEMPLATE_SAMPLES && NOT_ICON_PREFIXES.none { name.startsWith(it) } && NOT_ICON_SUFFIXES.none { name.endsWith(it) }
+
+    /**
+     * Every drawable in the pack, read straight from its resource table. Android numbers a pack's
+     * drawables one after another, so starting from any known drawable we can walk the whole set.
+     */
+    private fun scanDrawables(context: Context, res: Resources, pack: String, knownIds: List<Int>): List<Pair<String, Int>> {
+        val seeds = knownIds + listOfNotNull(runCatching { context.packageManager.getApplicationInfo(pack, 0).icon }.getOrNull())
+        val typeBase = seeds.firstOrNull { id -> id != 0 && runCatching { res.getResourceTypeName(id) }.getOrNull() == "drawable" }
+            ?.let { it and 0xFFFF0000.toInt() } ?: return emptyList()
+        val found = mutableListOf<Pair<String, Int>>()
+        var misses = 0
+        var index = 0
+        while (index < MAX_SCAN && misses < 64) {
+            val id = typeBase or index
+            val name = runCatching { res.getResourceEntryName(id) }.getOrNull()
+            if (name == null) misses++ else { misses = 0; found += name to id }
+            index++
+        }
+        return found.distinctBy { it.first }
+    }
+
+    private const val MAX_SCAN = 40000
 
     private fun resolveId(res: Resources, pack: String, name: String): Int =
         res.getIdentifier(name, "drawable", pack).takeIf { it != 0 }
