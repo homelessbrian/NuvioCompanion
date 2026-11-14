@@ -6,7 +6,7 @@ import android.content.Intent
 import android.os.Build
 import android.provider.Settings
 
-/** Shared ways to leave Companion's Home behaviour: the system Home picker and Android Settings. */
+/** Shared ways to leave Nuvio Launch's Home behaviour: the system Home picker and Android Settings. */
 object HomeSetup {
     /**
      * Opens the device's Home-app selector. RoleManager is only a last resort because on some

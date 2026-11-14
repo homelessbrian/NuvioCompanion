@@ -17,7 +17,11 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
-        <!-- Device Home screen. Opens Nuvio on a Home press; shows the Companion home screen
+        <!-- First-run setup. singleTask so the Home test can bring the user back to the same page. -->
+        <activity android:name=".SetupActivity" android:exported="false" android:launchMode="singleTask" />
+        <!-- Full-screen icon picker for one app. -->
+        <activity android:name=".IconPickerActivity" android:exported="false" />
+        <!-- Device Home screen. Opens Nuvio on a Home press; shows the Nuvio Launch home screen
              when the user backs out of Nuvio, so Nuvio can never trap the user. -->
         <activity
             android:name=".HomeActivity"

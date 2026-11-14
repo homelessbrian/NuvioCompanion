@@ -4,35 +4,34 @@ import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
-import android.graphics.drawable.Drawable
+import android.os.Build
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.WindowManager
-import android.os.Build
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.focusable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items as rowItems
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items as columnItems
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.itemsIndexed as listItemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -40,27 +39,23 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -71,27 +66,47 @@ import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.homelessbrian.nuviocompanion.AppArt
 import com.homelessbrian.nuviocompanion.AppCatalog
-import com.homelessbrian.nuviocompanion.IconPackManager
 import com.homelessbrian.nuviocompanion.DrawerPosition
 import com.homelessbrian.nuviocompanion.DrawerSettings
+import com.homelessbrian.nuviocompanion.FilterChip
+import com.homelessbrian.nuviocompanion.FocusCard
+import com.homelessbrian.nuviocompanion.IconPickerActivity
+import com.homelessbrian.nuviocompanion.InstalledApp
+import com.homelessbrian.nuviocompanion.KeyHints
+import com.homelessbrian.nuviocompanion.LaunchColors
+import com.homelessbrian.nuviocompanion.LaunchTheme
+import com.homelessbrian.nuviocompanion.LocalHighlight
+import com.homelessbrian.nuviocompanion.MainActivity
+import com.homelessbrian.nuviocompanion.SettingsSection
 import com.homelessbrian.nuviocompanion.SystemShortcuts
+import com.homelessbrian.nuviocompanion.designScale
+import com.homelessbrian.nuviocompanion.remote.RemoteKeyAccessibilityService
+import com.homelessbrian.nuviocompanion.tvClick
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
-/** Owns the system overlay from the AccessibilityService context, which is required for ACCESSIBILITY_OVERLAY. */
+/** Owns the app drawer window. It lives in the AccessibilityService, which is what lets it appear over any app. */
 object DrawerOverlayService {
     private var root: ComposeView? = null
     private var owner: OverlayLifecycleOwner? = null
     private var windowManager: WindowManager? = null
 
+    /** Set by the drawer while an inner panel (app options) is open, so Back closes that first. */
+    private var backInterceptor: (() -> Boolean)? = null
+
     fun toggle(service: AccessibilityService) {
         if (root == null) open(service) else close()
     }
 
-    /** Back/Escape dismisses the modal drawer before the underlying app receives input. */
+    /** Back/Escape dismisses the drawer (or its options panel) before the app underneath sees it. */
     fun handleBackKey(event: KeyEvent): Boolean {
         if (root == null) return false
         if (event.keyCode != KeyEvent.KEYCODE_BACK && event.keyCode != KeyEvent.KEYCODE_ESCAPE) return false
-        if (event.action == KeyEvent.ACTION_UP) close()
+        if (event.action == KeyEvent.ACTION_UP) {
+            if (backInterceptor?.invoke() != true) close()
+        }
         return event.action == KeyEvent.ACTION_DOWN || event.action == KeyEvent.ACTION_UP
     }
 
@@ -99,61 +114,52 @@ object DrawerOverlayService {
 
     private fun report(service: AccessibilityService, message: String) {
         service.sendBroadcast(
-            Intent(com.homelessbrian.nuviocompanion.remote.RemoteKeyAccessibilityService.ACTION_OVERLAY_STATUS)
+            Intent(RemoteKeyAccessibilityService.ACTION_OVERLAY_STATUS)
                 .setPackage(service.packageName)
-                .putExtra(com.homelessbrian.nuviocompanion.remote.RemoteKeyAccessibilityService.EXTRA_STATUS, message)
+                .putExtra(RemoteKeyAccessibilityService.EXTRA_STATUS, message)
         )
     }
+
     fun close() {
         root?.let { runCatching { windowManager?.removeView(it) } }
         owner?.destroy()
-        root = null; owner = null; windowManager = null
+        root = null
+        owner = null
+        windowManager = null
+        backInterceptor = null
     }
 
-    private fun updateSettingsWindow(context: Context) {
-        val view = root ?: return
-        val wm = windowManager ?: return
-        val metrics = context.resources.displayMetrics
-        val params = (view.layoutParams as? WindowManager.LayoutParams) ?: return
-        params.width = (metrics.widthPixels * .78f).toInt()
-        params.height = (metrics.heightPixels * .78f).toInt()
-        params.gravity = Gravity.CENTER
-        runCatching { wm.updateViewLayout(view, params) }
-    }
-
-    private fun updatePosition(context: Context, position: DrawerPosition) {
-        val view = root ?: return
-        val wm = windowManager ?: return
-        val metrics = context.resources.displayMetrics
-        val params = (view.layoutParams as? WindowManager.LayoutParams) ?: return
-        when (position) {
-            DrawerPosition.TOP -> {
-                params.width = (metrics.widthPixels * .68f).toInt()
-                params.height = (metrics.heightPixels * .32f).toInt()
-                params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+    /** Window size and place for each drawer style, in pixels. Sizes follow the 1280 × 720 mockups. */
+    private fun layoutParams(context: Context, position: DrawerPosition): WindowManager.LayoutParams {
+        val s = designScale(context)
+        fun px(units: Float) = (units * s).toInt()
+        val wrap = WindowManager.LayoutParams.WRAP_CONTENT
+        val (width, height, gravity) = when (position) {
+            DrawerPosition.BOTTOM -> Triple(px(1280f - 144f), wrap, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
+            DrawerPosition.TOP -> Triple(px(1280f - 144f), wrap, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+            DrawerPosition.RIGHT -> Triple(px(360f), px(720f - 72f), Gravity.END or Gravity.CENTER_VERTICAL)
+            DrawerPosition.LEFT -> Triple(px(360f), px(720f - 72f), Gravity.START or Gravity.CENTER_VERTICAL)
+            DrawerPosition.CENTER -> Triple(px(960f), wrap, Gravity.CENTER)
+        }
+        return WindowManager.LayoutParams(
+            width,
+            height,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_DIM_BEHIND,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            this.gravity = gravity
+            when (position) {
+                DrawerPosition.BOTTOM, DrawerPosition.TOP -> y = px(36f)
+                DrawerPosition.LEFT, DrawerPosition.RIGHT -> x = px(36f)
+                DrawerPosition.CENTER -> Unit
             }
-            DrawerPosition.BOTTOM -> {
-                params.width = (metrics.widthPixels * .68f).toInt()
-                params.height = (metrics.heightPixels * .32f).toInt()
-                params.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            }
-            DrawerPosition.LEFT -> {
-                params.width = (metrics.widthPixels * .13f).toInt()
-                params.height = (metrics.heightPixels * .82f).toInt()
-                params.gravity = Gravity.START or Gravity.CENTER_VERTICAL
-            }
-            DrawerPosition.RIGHT -> {
-                params.width = (metrics.widthPixels * .13f).toInt()
-                params.height = (metrics.heightPixels * .82f).toInt()
-                params.gravity = Gravity.END or Gravity.CENTER_VERTICAL
-            }
-            DrawerPosition.CENTER -> {
-                params.width = (metrics.widthPixels * .72f).toInt()
-                params.height = (metrics.heightPixels * .68f).toInt()
-                params.gravity = Gravity.CENTER
+            dimAmount = if (position == DrawerPosition.CENTER) 0.62f else 0.45f
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && DrawerSettings.blurBehind(context)) {
+                flags = flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
+                blurBehindRadius = px(28f)
             }
         }
-        runCatching { wm.updateViewLayout(view, params) }
     }
 
     private fun open(service: AccessibilityService) {
@@ -162,545 +168,411 @@ object DrawerOverlayService {
         var composeView: ComposeView? = null
 
         try {
-            report(service, "Shortcut received. Creating app drawer…")
+            report(service, "Shortcut received. Opening app drawer…")
             wm = service.getSystemService(Context.WINDOW_SERVICE) as WindowManager
             val position = DrawerSettings.position(service)
-            val (width, height, gravity) = when (position) {
-                DrawerPosition.TOP -> Triple((service.resources.displayMetrics.widthPixels * .68f).toInt(), (service.resources.displayMetrics.heightPixels * .32f).toInt(), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
-                DrawerPosition.BOTTOM -> Triple((service.resources.displayMetrics.widthPixels * .68f).toInt(), (service.resources.displayMetrics.heightPixels * .32f).toInt(), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
-                DrawerPosition.LEFT -> Triple((service.resources.displayMetrics.widthPixels * .13f).toInt(), (service.resources.displayMetrics.heightPixels * .82f).toInt(), Gravity.START or Gravity.CENTER_VERTICAL)
-                DrawerPosition.RIGHT -> Triple((service.resources.displayMetrics.widthPixels * .13f).toInt(), (service.resources.displayMetrics.heightPixels * .82f).toInt(), Gravity.END or Gravity.CENTER_VERTICAL)
-                DrawerPosition.CENTER -> Triple((service.resources.displayMetrics.widthPixels * .72f).toInt(), (service.resources.displayMetrics.heightPixels * .68f).toInt(), Gravity.CENTER)
-            }
 
             lifecycleOwner = OverlayLifecycleOwner().also { it.attach() }
+            val ownerRef = lifecycleOwner
             composeView = ComposeView(service).apply {
-                setViewTreeLifecycleOwner(lifecycleOwner!!)
-                setViewTreeSavedStateRegistryOwner(lifecycleOwner!!)
-                setViewTreeViewModelStoreOwner(lifecycleOwner!!)
+                setViewTreeLifecycleOwner(ownerRef)
+                setViewTreeSavedStateRegistryOwner(ownerRef)
+                setViewTreeViewModelStoreOwner(ownerRef)
                 isFocusable = true
                 isFocusableInTouchMode = true
-                setOnKeyListener { _, keyCode, event ->
-                    if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
-                        close()
-                        true
-                    } else false
-                }
                 setContent {
-                    MaterialTheme {
+                    LaunchTheme(DrawerSettings.highlight(service).color) {
                         DrawerContent(
-                            service,
+                            context = service,
+                            position = position,
+                            setBackInterceptor = { backInterceptor = it },
                             onClose = ::close,
                             onLaunch = { pkg ->
                                 val opened = if (SystemShortcuts.isShortcut(pkg)) SystemShortcuts.launch(service, pkg) else AppCatalog.launch(service, pkg)
-                                if (opened) close() else report(service, "Could not open this app. It may no longer be installed.")
+                                if (opened) close() else report(service, "Couldn't open this app. It may no longer be installed.")
+                            },
+                            onChangeIcon = { pkg ->
+                                close()
+                                IconPickerActivity.open(service, pkg)
+                            },
+                            onSettings = {
+                                close()
+                                MainActivity.open(service, SettingsSection.LOOK)
                             }
                         )
                     }
                 }
             }
 
-            val params = WindowManager.LayoutParams(
-                width,
-                height,
-                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_DIM_BEHIND,
-                PixelFormat.TRANSLUCENT
-            ).apply {
-                this.gravity = gravity
-                dimAmount = .34f
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    flags = flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
-                    blurBehindRadius = 28
-                }
-            }
-
-            lifecycleOwner!!.start()
-            wm.addView(composeView, params)
+            lifecycleOwner.start()
+            wm.addView(composeView, layoutParams(service, position))
             root = composeView
             owner = lifecycleOwner
             windowManager = wm
             composeView.requestFocus()
-            report(service, "Drawer opened successfully.")
+            report(service, "Drawer opened.")
         } catch (error: Throwable) {
             composeView?.let { view -> runCatching { wm?.removeView(view) } }
             lifecycleOwner?.destroy()
             root = null
             owner = null
             windowManager = null
+            backInterceptor = null
             runCatching {
-                report(service, "Drawer startup failed: ${error.javaClass.simpleName}: ${error.message ?: "unknown error"}")
+                report(service, "Drawer couldn't open: ${error.javaClass.simpleName}: ${error.message ?: "unknown error"}")
             }
         }
     }
 
+    private enum class GridFilter(val label: String) { ALL("All"), FAVORITES("Favorites"), RECENT("Recent") }
+
     @Composable
-    private fun DrawerContent(context: Context, onClose: () -> Unit, onLaunch: (String) -> Unit) {
-        var allApps by remember { mutableStateOf(AppCatalog.load(context, true)) }
-        val iconPacks = remember { IconPackManager.installed(context) }
-        var selectedIconPack by remember { mutableStateOf(DrawerSettings.iconPack(context)) }
-        var editingIconFor by remember { mutableStateOf<String?>(null) }
-        val iconPackCatalog = remember(selectedIconPack) { IconPackManager.catalog(context, selectedIconPack) }
-        val iconPackEntries = iconPackCatalog.entries
-        var showingSettings by remember { mutableStateOf(false) }
-        val settingsFocusRequester = remember { FocusRequester() }
-        val drawerFocusRequester = remember { FocusRequester() }
-
-        var hidden by remember { mutableStateOf(DrawerSettings.hidden(context)) }
+    private fun DrawerContent(
+        context: Context,
+        position: DrawerPosition,
+        setBackInterceptor: ((() -> Boolean)?) -> Unit,
+        onClose: () -> Unit,
+        onLaunch: (String) -> Unit,
+        onChangeIcon: (String) -> Unit,
+        onSettings: () -> Unit
+    ) {
+        val hiddenAtOpen = remember { DrawerSettings.hidden(context) }
+        var apps by remember { mutableStateOf(AppCatalog.cached().filterNot { it.packageName in hiddenAtOpen }) }
+        var shortcuts by remember { mutableStateOf<List<InstalledApp>>(emptyList()) }
         var favorites by remember { mutableStateOf(DrawerSettings.favorites(context)) }
-        var position by remember { mutableStateOf(DrawerSettings.position(context)) }
-        var showNames by remember { mutableStateOf(DrawerSettings.showNames(context)) }
-        var showIcons by remember { mutableStateOf(DrawerSettings.showIcons(context)) }
-        var focusGlow by remember { mutableStateOf(DrawerSettings.focusGlow(context)) }
-        var opacity by remember { mutableStateOf(DrawerSettings.opacity(context)) }
-        val isSide = position == DrawerPosition.LEFT || position == DrawerPosition.RIGHT
-        val isCenter = position == DrawerPosition.CENTER
-        val visibleApps = allApps.filter { it.packageName !in hidden }
-            .sortedWith(compareByDescending<com.homelessbrian.nuviocompanion.InstalledApp> { it.packageName in favorites }
-                .thenBy { it.label.lowercase() })
-        // Android Settings and Companion Settings always sit at the end of the drawer and cannot be
-        // hidden, so there is always a way out of any app (including Nuvio as Home).
-        val shortcutTiles = remember { SystemShortcuts.tiles(context) }
-        val drawerItems = visibleApps + shortcutTiles
-        LaunchedEffect(showingSettings, visibleApps.size, position) {
-            androidx.compose.runtime.withFrameNanos { }
-            if (showingSettings) settingsFocusRequester.requestFocus()
-            else if (drawerItems.isNotEmpty()) drawerFocusRequester.requestFocus()
-        }
-        val panel = Color(0xFF1A1A1A).copy(alpha = opacity)
-        LaunchedEffect(showingSettings, position) {
-            if (showingSettings) updateSettingsWindow(context) else updatePosition(context, position)
-        }
-        val accent = Color(0xFFF5F5F5)
+        var options by remember { mutableStateOf<InstalledApp?>(null) }
+        var gridFilter by remember { mutableStateOf(GridFilter.ALL) }
+        val showNames = remember { DrawerSettings.showNames(context) }
+        val showIcons = remember { DrawerSettings.showIcons(context) }
+        val glow = remember { DrawerSettings.focusGlow(context) }
+        val opacity = remember { DrawerSettings.opacity(context) }
+        val firstTile = remember { FocusRequester() }
+        val firstOption = remember { FocusRequester() }
 
-        Surface(
-            Modifier.fillMaxSize()
-                .onPreviewKeyEvent { event ->
-                    val back = event.key == Key.Back || event.key == Key.Escape
-                    if (back && event.type == KeyEventType.KeyUp) {
-                        if (showingSettings && editingIconFor != null) editingIconFor = null else onClose()
-                        true
-                    } else back
-                }
-                .shadow(18.dp, RoundedCornerShape(24.dp), clip = false),
-            shape = RoundedCornerShape(24.dp),
-            color = panel,
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f))
+        // Show the last list straight away, then refresh it (new installs, icon changes).
+        LaunchedEffect(Unit) {
+            val (fresh, tiles) = withContext(Dispatchers.IO) { AppCatalog.load(context) to SystemShortcuts.tiles(context) }
+            apps = fresh
+            shortcuts = tiles
+        }
+        LaunchedEffect(apps.isNotEmpty() || shortcuts.isNotEmpty()) {
+            withFrameNanos { }
+            runCatching { firstTile.requestFocus() }
+        }
+        LaunchedEffect(options) {
+            setBackInterceptor(if (options != null) ({ options = null; true }) else null)
+            withFrameNanos { }
+            runCatching { if (options != null) firstOption.requestFocus() else firstTile.requestFocus() }
+        }
+
+        val recents = remember { DrawerSettings.recents(context) }
+        val visibleApps = when (gridFilter) {
+            GridFilter.ALL -> apps
+            GridFilter.FAVORITES -> apps.filter { it.packageName in favorites }
+            GridFilter.RECENT -> apps.filter { it.packageName in recents }.sortedByDescending { recents[it.packageName] ?: 0L }
+        }
+        val items = visibleApps + shortcuts
+        val shape = RoundedCornerShape(28.dp)
+
+        val tileFor: @Composable (Int, InstalledApp, TileStyle) -> Unit = { index, app, style ->
+            DrawerTile(
+                app = app,
+                style = style,
+                showName = showNames,
+                showArt = showIcons,
+                glow = glow,
+                modifier = if (index == 0) Modifier.focusRequester(firstTile) else Modifier,
+                onClick = { onLaunch(app.packageName) },
+                onLongClick = if (SystemShortcuts.isShortcut(app.packageName)) null else ({ options = app })
+            )
+        }
+
+        Box(
+            Modifier.fillMaxWidth()
+                .then(if (position == DrawerPosition.LEFT || position == DrawerPosition.RIGHT) Modifier.fillMaxHeight() else Modifier)
+                .shadow(24.dp, shape, clip = false)
+                .clip(shape)
+                .background(Color(0xFF16161C).copy(alpha = opacity))
+                .border(1.dp, Color(0x1FFFFFFF), shape)
         ) {
-            if (showingSettings) {
-                LazyColumn(
-                    Modifier.fillMaxSize().focusGroup().padding(horizontal = 22.dp, vertical = 18.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                    contentPadding = PaddingValues(bottom = 24.dp)
+            val current = options
+            when (position) {
+                DrawerPosition.BOTTOM, DrawerPosition.TOP -> Column(
+                    Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 18.dp, bottom = 22.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    item {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text("APP DRAWER SETTINGS", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                                Text("Personalize your app drawer", color = Color(0xFFB3B3B3), fontSize = 12.sp)
-                            }
-                            DrawerAction("DONE", true, Modifier.focusRequester(settingsFocusRequester)) { showingSettings = false }
-                        }
-                    }
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                            Text("POSITION", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                DrawerPosition.entries.forEach { option ->
-                                    DrawerAction(option.name, position == option, Modifier.weight(1f)) {
-                                        position = option
-                                        DrawerSettings.setPosition(context, option)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                            Text("APPEARANCE", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                DrawerAction(if (showNames) "APP NAMES  ✓" else "APP NAMES", showNames) {
-                                    showNames = !showNames
-                                    DrawerSettings.setShowNames(context, showNames)
-                                }
-                                DrawerAction(if (showIcons) "APP ICONS  ✓" else "APP ICONS", showIcons) {
-                                    showIcons = !showIcons
-                                    DrawerSettings.setShowIcons(context, showIcons)
-                                }
-                                DrawerAction(if (focusGlow) "FOCUS GLOW  ✓" else "FOCUS GLOW", focusGlow) {
-                                    focusGlow = !focusGlow
-                                    DrawerSettings.setFocusGlow(context, focusGlow)
-                                }
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("PANEL OPACITY", color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                                listOf(0.72f, 0.84f, 0.94f).forEachIndexed { index, value ->
-                                    DrawerAction(listOf("70%", "85%", "95%")[index], opacity == value) {
-                                        opacity = value
-                                        DrawerSettings.setOpacity(context, value)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                            Text("ICON PACK", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                            Text(if (iconPacks.isEmpty()) "No compatible icon packs detected. Install an ADW-compatible icon pack to use custom icons." else "Choose an installed icon pack for your app drawer.", color = Color(0xFFB3B3B3), fontSize = 11.sp)
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                item { DrawerAction("SYSTEM", selectedIconPack == null) { selectedIconPack = null; DrawerSettings.setIconPack(context, null); allApps = AppCatalog.load(context, true) } }
-                                rowItems(iconPacks, key = { it.packageName }) { pack -> DrawerAction(pack.label, selectedIconPack == pack.packageName) { selectedIconPack = pack.packageName; DrawerSettings.setIconPack(context, pack.packageName); allApps = AppCatalog.load(context, true) } }
-                            }
-                        }
-                    }
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            DividerLine()
-                            Text("MANAGE APPS", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                            Text("Choose which apps appear. Pin favorites to keep them first. Newly installed apps appear automatically the next time you open the drawer.", color = Color(0xFFB3B3B3), fontSize = 11.sp)
-                            Text("${visibleApps.size} visible · ${allApps.size} installed", color = accent, fontSize = 11.sp)
-                        }
-                    }
-                    if (editingIconFor == null) {
-                        columnItems(allApps, key = { it.packageName }) { app ->
-                            Row(
-                                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 7.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Image(app.icon.toBitmapPreservingAspect(96).asImageBitmap(), app.label, Modifier.size(46.dp), contentScale = ContentScale.Fit)
-                                Spacer(Modifier.width(14.dp))
-                                Text(app.label, color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 1)
-                                DrawerAction("ICON", false) { editingIconFor = app.packageName }
-                                Spacer(Modifier.width(8.dp))
-                                DrawerAction(if (app.packageName in favorites) "★" else "☆", app.packageName in favorites) {
-                                    favorites = if (app.packageName in favorites) favorites - app.packageName else favorites + app.packageName
-                                    DrawerSettings.setFavorites(context, favorites)
-                                }
-                                Spacer(Modifier.width(10.dp))
-                                Switch(
-                                    checked = app.packageName !in hidden,
-                                    onCheckedChange = { visible ->
-                                        hidden = if (visible) hidden - app.packageName else hidden + app.packageName
-                                        DrawerSettings.setHidden(context, hidden)
-                                    }
-                                )
-                            }
-                        }
+                    if (current != null) {
+                        OptionsBar(current, favorites, firstOption, onFavorite = {
+                            favorites = toggleFavorite(context, current.packageName, favorites)
+                            options = null
+                        }, onHide = {
+                            hide(context, current.packageName)
+                            apps = apps.filterNot { it.packageName == current.packageName }
+                            options = null
+                        }, onIcon = { onChangeIcon(current.packageName) }, onCancel = { options = null })
                     } else {
-                        val packageName = editingIconFor!!
-                        val app = allApps.firstOrNull { it.packageName == packageName }
-                        item {
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                DrawerAction("← BACK", false) { editingIconFor = null }
-                                Spacer(Modifier.width(14.dp))
-                                Text("CHOOSE ICON · ${app?.label ?: packageName}", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                            }
-                            Spacer(Modifier.height(8.dp))
-                            if (selectedIconPack.isNullOrBlank()) {
-                                Text("Select an icon pack above before choosing individual icons.", color = Color(0xFFB3B3B3), fontSize = 12.sp)
-                            } else if (iconPackEntries.isEmpty()) {
-                                Text(
-                                    iconPackCatalog.error ?: "No selectable icons were found in this pack.",
-                                    color = Color(0xFFB3B3B3),
-                                    fontSize = 12.sp
-                                )
-                            } else {
-                                Text("${iconPackEntries.size} icons available · Select any icon", color = Color(0xFFB3B3B3), fontSize = 11.sp)
-                            }
-                            DrawerAction("USE PACK DEFAULT", false) {
-                                DrawerSettings.setAppIconOverride(context, packageName, null)
-                                allApps = AppCatalog.load(context, true)
-                                editingIconFor = null
-                            }
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text("Your apps", color = LaunchColors.TextSoft, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.weight(1f))
+                            KeyHints("Back" to "close", "Hold OK" to "options")
                         }
-                        if (!selectedIconPack.isNullOrBlank() && iconPackEntries.isNotEmpty()) {
-                            columnItems(
-                                iconPackEntries.chunked(5),
-                                key = { row -> row.firstOrNull()?.drawableName ?: "empty-icon-row" }
-                            ) { iconRow ->
-                                Row(
-                                    Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    iconRow.forEach { entry ->
-                                        Column(
-                                            Modifier.weight(1f)
-                                                .clip(RoundedCornerShape(10.dp))
-                                                .clickable {
-                                                    DrawerSettings.setAppIconOverride(context, packageName, entry.drawableName)
-                                                    allApps = AppCatalog.load(context, true)
-                                                    editingIconFor = null
-                                                }
-                                                .focusable()
-                                                .padding(horizontal = 3.dp, vertical = 7.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            val preview = remember(selectedIconPack, entry.drawableName) {
-                                                selectedIconPack?.let { IconPackManager.drawable(context, it, entry.drawableName) }
-                                            }
-                                            if (preview != null) {
-                                                Image(
-                                                    preview.toBitmapPreservingAspect(128).asImageBitmap(),
-                                                    entry.drawableName,
-                                                    Modifier.size(54.dp),
-                                                    contentScale = ContentScale.Fit
-                                                )
-                                            } else {
-                                                Box(Modifier.size(54.dp), contentAlignment = Alignment.Center) {
-                                                    Text("?", color = Color(0xFFB3B3B3), fontSize = 20.sp)
-                                                }
-                                            }
-                                            Text(
-                                                entry.drawableName,
-                                                color = Color.White,
-                                                fontSize = 9.sp,
-                                                maxLines = 2,
-                                                minLines = 2,
-                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                            )
-                                        }
-                                    }
-                                    repeat(5 - iconRow.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalAlignment = Alignment.Bottom,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
+                    ) {
+                        listItemsIndexed(items, key = { _, app -> app.packageName }) { index, app ->
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                if (app.packageName == shortcuts.firstOrNull()?.packageName && visibleApps.isNotEmpty()) {
+                                    Box(Modifier.padding(end = 14.dp, bottom = 30.dp).width(1.dp).height(70.dp).background(Color(0x24FFFFFF)))
                                 }
+                                tileFor(index, app, if (SystemShortcuts.isShortcut(app.packageName)) TileStyle.DOCK_SQUARE else TileStyle.DOCK)
                             }
                         }
                     }
                 }
-            } else if (isCenter) {
-                Column(Modifier.fillMaxSize().padding(22.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("▦", color = accent, fontSize = 22.sp)
-                        Spacer(Modifier.width(10.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("Apps", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                            Text("${visibleApps.size} apps installed", color = Color(0xFFB3B3B3), fontSize = 11.sp)
+                DrawerPosition.LEFT, DrawerPosition.RIGHT -> Column(
+                    Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 22.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    if (current != null) {
+                        OptionsColumn(current, favorites, firstOption, onFavorite = {
+                            favorites = toggleFavorite(context, current.packageName, favorites)
+                            options = null
+                        }, onHide = {
+                            hide(context, current.packageName)
+                            apps = apps.filterNot { it.packageName == current.packageName }
+                            options = null
+                        }, onIcon = { onChangeIcon(current.packageName) }, onCancel = { options = null })
+                    } else {
+                        Text("Your apps", color = LaunchColors.TextSoft, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 12.dp, bottom = 10.dp))
+                        LazyColumn(
+                            Modifier.weight(1f).fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            contentPadding = PaddingValues(vertical = 4.dp, horizontal = 4.dp)
+                        ) {
+                            listItemsIndexed(visibleApps, key = { _, app -> app.packageName }) { index, app ->
+                                tileFor(index, app, TileStyle.RAIL)
+                            }
                         }
-                        DrawerAction("⚙  SETTINGS", false) { showingSettings = true }
-                        Spacer(Modifier.width(8.dp))
-                        DrawerAction("×", false, onClick = onClose)
+                        Box(Modifier.fillMaxWidth().padding(vertical = 6.dp).height(1.dp).background(Color(0x1AFFFFFF)))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            shortcuts.forEach { shortcut ->
+                                RailButton(
+                                    if (shortcut.packageName == SystemShortcuts.ANDROID_SETTINGS) "Android" else "Nuvio Launch",
+                                    Modifier.weight(1f).then(if (visibleApps.isEmpty() && shortcut == shortcuts.first()) Modifier.focusRequester(firstTile) else Modifier)
+                                ) { onLaunch(shortcut.packageName) }
+                            }
+                        }
                     }
-                    Spacer(Modifier.height(18.dp))
+                }
+                DrawerPosition.CENTER -> Column(
+                    Modifier.fillMaxWidth().heightIn(max = 600.dp).padding(start = 32.dp, end = 32.dp, top = 28.dp, bottom = 30.dp),
+                    verticalArrangement = Arrangement.spacedBy(22.dp)
+                ) {
+                    if (current != null) {
+                        OptionsBar(current, favorites, firstOption, onFavorite = {
+                            favorites = toggleFavorite(context, current.packageName, favorites)
+                            options = null
+                        }, onHide = {
+                            hide(context, current.packageName)
+                            apps = apps.filterNot { it.packageName == current.packageName }
+                            options = null
+                        }, onIcon = { onChangeIcon(current.packageName) }, onCancel = { options = null })
+                    } else {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text("Apps", color = LaunchColors.Text, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.width(22.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                GridFilter.entries.forEach { option -> FilterChip(option.label, gridFilter == option) { gridFilter = option } }
+                            }
+                            Spacer(Modifier.weight(1f))
+                            FilterChip("Drawer settings", false, onSettings)
+                        }
+                    }
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(5),
-                        modifier = Modifier.fillMaxSize().focusGroup(),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                        contentPadding = PaddingValues(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp),
+                        contentPadding = PaddingValues(8.dp)
                     ) {
-                        items(drawerItems, key = { it.packageName }) { app ->
-                            CenterAppTile(app, showNames, showIcons, focusGlow, if (app == drawerItems.firstOrNull()) Modifier.focusRequester(drawerFocusRequester) else Modifier) { onLaunch(app.packageName) }
-                        }
-                    }
-                }
-            } else if (isSide) {
-                Column(
-                    Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 18.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    LazyColumn(
-                        Modifier.weight(1f).fillMaxWidth().focusGroup(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(vertical = 4.dp)
-                    ) {
-                        columnItems(drawerItems, key = { it.packageName }) { app ->
-                            SideAppTile(app, showNames, showIcons, focusGlow, if (app == drawerItems.firstOrNull()) Modifier.focusRequester(drawerFocusRequester) else Modifier) { onLaunch(app.packageName) }
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    DrawerIconAction("⚙", Modifier.size(44.dp)) { showingSettings = true }
-                }
-            } else {
-                Column(
-                    Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 13.dp),
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("⠿", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.weight(1f))
-                        DrawerAction("⠿", false) { showingSettings = false }
-                        Spacer(Modifier.width(8.dp))
-                        DrawerAction("⚙", false) { showingSettings = true }
-                        Spacer(Modifier.width(8.dp))
-                        DrawerAction("×", false, onClick = onClose)
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    LazyRow(
-                        Modifier.fillMaxWidth().focusGroup(),
-                        horizontalArrangement = Arrangement.spacedBy(13.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        contentPadding = PaddingValues(vertical = 9.dp, horizontal = 4.dp)
-                    ) {
-                        rowItems(drawerItems, key = { it.packageName }) { app ->
-                            DockAppTile(app, showNames, showIcons, focusGlow, if (app == drawerItems.firstOrNull()) Modifier.focusRequester(drawerFocusRequester) else Modifier) { onLaunch(app.packageName) }
+                        itemsIndexed(items, key = { _, app -> app.packageName }) { index, app ->
+                            tileFor(index, app, TileStyle.GRID)
                         }
                     }
                 }
             }
+            if (items.isEmpty()) {
+                Text("Loading your apps…", color = LaunchColors.Muted, fontSize = 17.sp, modifier = Modifier.align(Alignment.Center).padding(30.dp))
+            }
         }
     }
 
-    @Composable
-    private fun DrawerAction(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-        val shape = RoundedCornerShape(12.dp)
-        var focused by remember(label) { mutableStateOf(false) }
-        Text(
-            label,
-            color = if (selected) Color(0xFF111111) else Color(0xFFE0E0E0),
-            fontSize = 11.sp,
-            fontWeight = if (selected || focused) FontWeight.Bold else FontWeight.Medium,
-            modifier = modifier
-                .onFocusChanged { focused = it.isFocused }
-                .background(if (selected) Color(0xFFF5F5F5) else if (focused) Color(0xFF3A3A3A) else Color(0xFF2D2D2D), shape)
-                .then(if (selected || focused) Modifier.border(1.dp, Color(0xFFFFFFFF), shape) else Modifier)
-                .clickable(onClick = onClick)
-                .focusable()
-                .padding(horizontal = 13.dp, vertical = 10.dp)
-        )
+    private fun toggleFavorite(context: Context, pkg: String, current: Set<String>): Set<String> {
+        val updated = if (pkg in current) current - pkg else current + pkg
+        DrawerSettings.setFavorites(context, updated)
+        return updated
     }
 
-    @Composable
-    private fun DrawerIconAction(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-        var focused by remember(label) { mutableStateOf(false) }
-        Text(
-            label,
-            color = Color.White,
-            fontSize = 21.sp,
-            modifier = modifier
-                .onFocusChanged { focused = it.isFocused }
-                .then(if (focused) Modifier.border(1.dp, Color.White.copy(alpha = 0.9f), CircleShape) else Modifier)
-                .clickable(onClick = onClick)
-                .focusable(),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
+    private fun hide(context: Context, pkg: String) {
+        DrawerSettings.setHidden(context, DrawerSettings.hidden(context) + pkg)
     }
 
+    private enum class TileStyle { DOCK, DOCK_SQUARE, RAIL, GRID }
+
     @Composable
-    private fun DockAppTile(
-        app: com.homelessbrian.nuviocompanion.InstalledApp,
-        showNames: Boolean,
-        showIcons: Boolean,
-        focusGlow: Boolean,
-        focusModifier: Modifier = Modifier,
-        onClick: () -> Unit
+    private fun DrawerTile(
+        app: InstalledApp,
+        style: TileStyle,
+        showName: Boolean,
+        showArt: Boolean,
+        glow: Boolean,
+        modifier: Modifier,
+        onClick: () -> Unit,
+        onLongClick: (() -> Unit)?
     ) {
-        var focused by remember(app.packageName) { mutableStateOf(false) }
-        val scale by animateFloatAsState(if (focused) 1.07f else 1f, label = "dockFocus")
-        val shape = RoundedCornerShape(17.dp)
-        Column(
-            focusModifier.width(104.dp).height(108.dp).graphicsLayer { scaleX = scale; scaleY = scale }
-                .onFocusChanged { focused = it.isFocused }
-                .then(if (focused && focusGlow) Modifier.background(Color.White.copy(alpha = 0.10f), shape).border(2.dp, Color.White, shape) else Modifier)
-                .clickable(onClick = onClick).focusable().padding(vertical = 4.dp, horizontal = 4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            if (showIcons) {
-                Box(
-                    Modifier.width(96.dp).height(54.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF292929)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        app.icon.toBitmapPreservingAspect(512).asImageBitmap(),
-                        app.label,
-                        Modifier.fillMaxSize(),
-                        contentScale = if (app.isTvBanner) ContentScale.Crop else ContentScale.Fit
-                    )
+        var focused by remember { mutableStateOf(false) }
+        val highlight = LocalHighlight.current
+        val scale by animateFloatAsState(if (focused && style != TileStyle.RAIL) 1.08f else 1f, label = "tile")
+        val ring = if (glow) highlight else Color.White
+        val (artWidth, artHeight) = when (style) {
+            TileStyle.DOCK -> 150.dp to 84.dp
+            TileStyle.DOCK_SQUARE -> 84.dp to 84.dp
+            TileStyle.RAIL -> 96.dp to 54.dp
+            TileStyle.GRID -> 164.dp to 92.dp
+        }
+        val corner = if (style == TileStyle.RAIL) 9.dp else 14.dp
+        val art: @Composable () -> Unit = {
+            Box(
+                Modifier.graphicsLayer { scaleX = scale; scaleY = scale }
+                    .then(if (focused) Modifier.shadow(14.dp, RoundedCornerShape(corner), clip = false) else Modifier)
+                    .then(if (focused && style != TileStyle.RAIL) Modifier.border(4.dp, ring, RoundedCornerShape(corner)) else Modifier)
+            ) {
+                if (showArt || SystemShortcuts.isShortcut(app.packageName)) {
+                    AppArt(app, Modifier.width(artWidth).height(artHeight), corner)
+                } else {
+                    NameOnlyArt(app.label, artWidth, artHeight, corner)
                 }
             }
-            if (showNames) Text(app.label, color = Color.White, fontSize = 9.sp, maxLines = 1, modifier = Modifier.padding(top = 4.dp))
         }
-    }
+        val label: @Composable (Boolean) -> Unit = { bold ->
+            Text(
+                app.label,
+                color = if (style == TileStyle.RAIL && focused) LaunchColors.OnFocus else if (focused) LaunchColors.Text else LaunchColors.Muted,
+                fontSize = if (style == TileStyle.RAIL) 18.sp else 15.sp,
+                fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = if (style == TileStyle.RAIL) TextAlign.Start else TextAlign.Center
+            )
+        }
+        val clickModifier = modifier
+            .onFocusChanged { focused = it.isFocused }
+            .tvClick(onClick, onLongClick)
 
-    @Composable
-    private fun SideAppTile(
-        app: com.homelessbrian.nuviocompanion.InstalledApp,
-        showNames: Boolean,
-        showIcons: Boolean,
-        focusGlow: Boolean,
-        focusModifier: Modifier = Modifier,
-        onClick: () -> Unit
-    ) {
-        var focused by remember(app.packageName) { mutableStateOf(false) }
-        val shape = RoundedCornerShape(15.dp)
-        Column(
-            focusModifier.width(84.dp).height(88.dp).onFocusChanged { focused = it.isFocused }
-                .then(if (focused && focusGlow) Modifier.background(Color.White.copy(alpha = 0.10f), shape).border(2.dp, Color.White, shape) else Modifier)
-                .clickable(onClick = onClick).focusable().padding(vertical = 4.dp, horizontal = 4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            if (showIcons) {
-                Box(
-                    Modifier.width(76.dp).height(43.dp)
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(Color(0xFF292929)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        app.icon.toBitmapPreservingAspect(384).asImageBitmap(),
-                        app.label,
-                        Modifier.fillMaxSize(),
-                        contentScale = if (app.isTvBanner) ContentScale.Crop else ContentScale.Fit
-                    )
+        when (style) {
+            TileStyle.RAIL -> Row(
+                clickModifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                    .background(if (focused) LaunchColors.Text else Color.Transparent)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                art()
+                label(focused)
+            }
+            else -> Column(
+                clickModifier.width(artWidth).padding(top = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                art()
+                // The focused app always shows its name; others only with "Show app names" on.
+                Box(Modifier.height(24.dp).padding(top = 4.dp), contentAlignment = Alignment.Center) {
+                    if (focused || showName || style == TileStyle.GRID) label(focused)
                 }
             }
-            if (showNames) Text(app.label, color = Color.White, fontSize = 9.sp, maxLines = 1)
         }
     }
 
     @Composable
-    private fun CenterAppTile(
-        app: com.homelessbrian.nuviocompanion.InstalledApp,
-        showNames: Boolean,
-        showIcons: Boolean,
-        focusGlow: Boolean,
-        focusModifier: Modifier = Modifier,
-        onClick: () -> Unit
-    ) {
-        var focused by remember(app.packageName) { mutableStateOf(false) }
-        val scale by animateFloatAsState(if (focused) 1.06f else 1f, label = "gridFocus")
-        val shape = RoundedCornerShape(17.dp)
-        Column(
-            focusModifier.fillMaxWidth().height(124.dp).graphicsLayer { scaleX = scale; scaleY = scale }
-                .onFocusChanged { focused = it.isFocused }
-                .then(if (focused && focusGlow) Modifier.background(Color.White.copy(alpha = 0.10f), shape).border(2.dp, Color.White, shape) else Modifier)
-                .clickable(onClick = onClick).focusable().padding(4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+    private fun NameOnlyArt(label: String, width: Dp, height: Dp, corner: Dp) {
+        Box(
+            Modifier.width(width).height(height).clip(RoundedCornerShape(corner)).background(LaunchColors.Tile),
+            contentAlignment = Alignment.Center
         ) {
-            if (showIcons) {
-                Box(
-                    Modifier.width(116.dp).height(65.dp)
-                        .clip(RoundedCornerShape(11.dp))
-                        .background(Color(0xFF292929)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        app.icon.toBitmapPreservingAspect(512).asImageBitmap(),
-                        app.label,
-                        Modifier.fillMaxSize(),
-                        contentScale = if (app.isTvBanner) ContentScale.Crop else ContentScale.Fit
-                    )
-                }
-            }
-            if (showNames) Text(app.label, color = Color.White, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(top = 7.dp))
+            Text(label, color = LaunchColors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 2, textAlign = TextAlign.Center, modifier = Modifier.padding(8.dp))
         }
     }
 
-    private fun Drawable.toBitmapPreservingAspect(maxSize: Int): android.graphics.Bitmap {
-        val sourceWidth = intrinsicWidth.takeIf { it > 0 } ?: maxSize
-        val sourceHeight = intrinsicHeight.takeIf { it > 0 } ?: maxSize
-        val scale = maxSize.toFloat() / maxOf(sourceWidth, sourceHeight)
-        val width = (sourceWidth * scale).toInt().coerceAtLeast(1)
-        val height = (sourceHeight * scale).toInt().coerceAtLeast(1)
-        return toBitmap(width, height)
+    @Composable
+    private fun RailButton(label: String, modifier: Modifier, onClick: () -> Unit) {
+        FocusCard(modifier = modifier, shape = RoundedCornerShape(14.dp), idle = LaunchColors.Tile, onClick = onClick) { focused ->
+            Text(
+                label,
+                color = if (focused) LaunchColors.OnFocus else LaunchColors.Text,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                modifier = Modifier.fillMaxWidth().padding(12.dp)
+            )
+        }
+    }
+
+    /** Options for one app, shown after holding OK on it. Back closes them. */
+    @Composable
+    private fun OptionsBar(
+        app: InstalledApp,
+        favorites: Set<String>,
+        firstOption: FocusRequester,
+        onFavorite: () -> Unit,
+        onHide: () -> Unit,
+        onIcon: () -> Unit,
+        onCancel: () -> Unit
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(app.label, color = LaunchColors.Text, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            OptionButton(if (app.packageName in favorites) "Remove favorite" else "Add to favorites", Modifier.focusRequester(firstOption), onFavorite)
+            OptionButton("Hide", Modifier, onHide)
+            OptionButton("Change icon", Modifier, onIcon)
+            OptionButton("Cancel", Modifier, onCancel)
+        }
     }
 
     @Composable
-    private fun DividerLine() {
-        Spacer(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF333333)))
+    private fun OptionsColumn(
+        app: InstalledApp,
+        favorites: Set<String>,
+        firstOption: FocusRequester,
+        onFavorite: () -> Unit,
+        onHide: () -> Unit,
+        onIcon: () -> Unit,
+        onCancel: () -> Unit
+    ) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            AppArt(app, Modifier.width(160.dp).height(90.dp), 12.dp)
+            Text(app.label, color = LaunchColors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            OptionButton(if (app.packageName in favorites) "Remove favorite" else "Add to favorites", Modifier.fillMaxWidth().focusRequester(firstOption), onFavorite)
+            OptionButton("Hide", Modifier.fillMaxWidth(), onHide)
+            OptionButton("Change icon", Modifier.fillMaxWidth(), onIcon)
+            OptionButton("Cancel", Modifier.fillMaxWidth(), onCancel)
+        }
+    }
+
+    @Composable
+    private fun OptionButton(label: String, modifier: Modifier, onClick: () -> Unit) {
+        FocusCard(modifier = modifier, shape = RoundedCornerShape(12.dp), idle = LaunchColors.Tile, scaleOnFocus = 1.04f, onClick = onClick) { focused ->
+            Text(
+                label,
+                color = if (focused) LaunchColors.OnFocus else LaunchColors.Text,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp)
+            )
+        }
     }
 
     private class OverlayLifecycleOwner : LifecycleOwner, SavedStateRegistryOwner, ViewModelStoreOwner {

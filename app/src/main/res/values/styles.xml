@@ -1,8 +1,9 @@
 <resources>
     <style name="Theme.NuvioCompanion" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#6574D8</item>
+        <item name="android:colorAccent">#F4F4F6</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowBackground">#FF0A0A0D</item>
     </style>
 </resources>

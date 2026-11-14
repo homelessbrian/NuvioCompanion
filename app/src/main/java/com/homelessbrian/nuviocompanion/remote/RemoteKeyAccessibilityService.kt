@@ -32,6 +32,15 @@ class RemoteKeyAccessibilityService : AccessibilityService() {
         if (DrawerOverlayService.handleBackKey(event)) return true
 
         if (DrawerSettings.isRecording(this)) {
+            // Back, Home, OK and the arrows keep working so the remote can still be used.
+            if (event.keyCode in KeyNames.blocked) {
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
+                    event.keyCode != KeyEvent.KEYCODE_BACK && event.keyCode != KeyEvent.KEYCODE_HOME
+                ) {
+                    sendBroadcast(Intent(ACTION_SHORTCUT_REJECTED).setPackage(packageName).putExtra(EXTRA_KEY_CODE, event.keyCode))
+                }
+                return false
+            }
             if (event.action == KeyEvent.ACTION_DOWN) {
                 if (event.repeatCount == 0) {
                     if (DrawerSettings.recordingTarget(this) == "secondary") DrawerSettings.setSecondKeyCode(this, event.keyCode)
@@ -114,6 +123,8 @@ class RemoteKeyAccessibilityService : AccessibilityService() {
 
     private fun trigger() {
         sendBroadcast(Intent(ACTION_SHORTCUT_TRIGGERED).setPackage(packageName))
+        // "Test your button" in Settings only wants to know the press arrived.
+        if (DrawerSettings.isTestingShortcut(this)) return
         // WindowManager and Compose view creation must run on the main thread.
         handler.post {
             runCatching { DrawerOverlayService.toggle(this) }
@@ -147,7 +158,19 @@ class RemoteKeyAccessibilityService : AccessibilityService() {
         const val ACTION_SHORTCUT_RECORDED = "com.homelessbrian.nuviocompanion.SHORTCUT_RECORDED"
         const val ACTION_SHORTCUT_TRIGGERED = "com.homelessbrian.nuviocompanion.SHORTCUT_TRIGGERED"
         const val ACTION_OVERLAY_STATUS = "com.homelessbrian.nuviocompanion.OVERLAY_STATUS"
+        const val ACTION_SHORTCUT_REJECTED = "com.homelessbrian.nuviocompanion.SHORTCUT_REJECTED"
         const val EXTRA_STATUS = "status"
+        const val EXTRA_KEY_CODE = "key_code"
+
+        /** Whether the user has turned on this service in Android's Accessibility settings. */
+        fun isEnabled(context: android.content.Context): Boolean {
+            val expected = android.content.ComponentName(context, RemoteKeyAccessibilityService::class.java).flattenToString()
+            val enabled = android.provider.Settings.Secure.getString(
+                context.contentResolver,
+                android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            ) ?: return false
+            return enabled.split(':').any { it.equals(expected, ignoreCase = true) }
+        }
         private const val DOUBLE_PRESS_WINDOW = 320L
         private const val LONG_PRESS_TIMEOUT = 600L
     }

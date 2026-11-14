@@ -1,7 +1,6 @@
 package com.homelessbrian.nuviocompanion
 
 import android.content.Intent
-import android.graphics.Bitmap
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -9,65 +8,66 @@ import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.addCallback
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.graphics.drawable.toBitmap
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /**
- * The device Home screen when Companion is chosen as the Home app.
+ * The device Home screen when Nuvio Launch is chosen as the Home app.
  *
  * Rules (designed so the user can never be trapped inside Nuvio):
  *  - A real Home press (new HOME intent, or a fresh start such as boot) opens Nuvio.
  *  - Coming back here WITHOUT a Home press (backing out of Nuvio, Nuvio closing or crashing)
- *    shows the Companion home screen instead of reopening Nuvio. This is what prevents the loop.
+ *    shows the Nuvio Launch home screen instead of reopening Nuvio. This is what prevents the loop.
  *  - If Nuvio closes within a few seconds of opening twice in a row, Home stops opening Nuvio
  *    until the user picks "Open Nuvio" again.
  *  - If Nuvio cannot be opened, or never appears, the home screen is shown.
- *  - The home screen always offers Android Settings, Companion settings and
+ *  - The home screen always offers Android Settings, Nuvio Launch settings and
  *    "Stop using as Home", and the user can switch Home back to Nuvio from here.
  */
 class HomeActivity : ComponentActivity() {
@@ -103,13 +103,13 @@ class HomeActivity : ComponentActivity() {
         if (savedInstanceState == null && isHomePress(intent)) onHomePressed() else showHome(null)
 
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme(primary = HomeColors.Accent, background = HomeColors.Background, surface = HomeColors.Panel)) {
-                Surface(Modifier.fillMaxSize(), color = HomeColors.Background) {
+            LaunchTheme(DrawerSettings.highlight(this@HomeActivity).color) {
+                Surface(Modifier.fillMaxSize(), color = LaunchColors.Background) {
                     if (mode == Mode.Home) {
                         HomeScreen(
                             notice = notice,
                             redirectEnabled = redirectEnabled,
-                            hasNuvio = DrawerSettings.selectedNuvio(this@HomeActivity) != null,
+                            nuvioLabel = DrawerSettings.selectedNuvio(this@HomeActivity)?.let { AppCatalog.label(this@HomeActivity, it) },
                             refreshKey = refreshKey,
                             onOpenNuvio = ::openNuvioFromButton,
                             onAndroidSettings = { HomeSetup.openAndroidSettings(this@HomeActivity) },
@@ -158,6 +158,15 @@ class HomeActivity : ComponentActivity() {
         intent?.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_HOME)
 
     private fun onHomePressed() {
+        // Setup asked the user to press Home once to prove it reaches us. Report back to setup
+        // instead of opening Nuvio.
+        if (DrawerSettings.homeTestPending(this)) {
+            DrawerSettings.setHomeTestPending(this, false)
+            DrawerSettings.setHomeTestPassed(this, true)
+            showHome(null)
+            SetupActivity.open(this, SetupStep.HOME)
+            return
+        }
         val nuvio = DrawerSettings.selectedNuvio(this)
         when {
             !DrawerSettings.homeRedirectEnabled(this) -> showHome(null)
@@ -195,7 +204,7 @@ class HomeActivity : ComponentActivity() {
         } else {
             DrawerSettings.setHomeQuickReturns(this, 0)
         }
-        showHome(null)
+        showHome(BACKED_OUT_NOTICE)
     }
 
     private fun showHome(message: String?) {
@@ -235,26 +244,16 @@ class HomeActivity : ComponentActivity() {
         const val QUICK_CLOSE_MS = 4_000L
         const val QUICK_CLOSES_BEFORE_PAUSE = 2
         const val REDIRECT_TIMEOUT_MS = 3_000L
+        const val BACKED_OUT_NOTICE = "You backed out of Nuvio. Press Home or choose Open Nuvio to go back."
         const val PAUSED_NOTICE = "Nuvio closed right after opening, so Home is paused. Choose Open Nuvio to turn it back on."
     }
 }
-
-private object HomeColors {
-    val Background = Color(0xFF0D0D0D)
-    val Panel = Color(0xFF1A1A1A)
-    val Raised = Color(0xFF262626)
-    val Muted = Color(0xFFB3B3B3)
-    val Accent = Color(0xFFF5F5F5)
-    val Warning = Color(0xFFFFB74D)
-}
-
-private data class HomeTile(val app: InstalledApp, val image: ImageBitmap)
 
 @Composable
 private fun HomeScreen(
     notice: String?,
     redirectEnabled: Boolean,
-    hasNuvio: Boolean,
+    nuvioLabel: String?,
     refreshKey: Int,
     onOpenNuvio: () -> Unit,
     onAndroidSettings: () -> Unit,
@@ -263,16 +262,18 @@ private fun HomeScreen(
     onSendHomeToNuvio: () -> Unit,
     onLaunchApp: (String) -> Unit
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val firstAction = remember { FocusRequester() }
-    var tiles by remember { mutableStateOf<List<HomeTile>>(emptyList()) }
+    var apps by remember { mutableStateOf(AppCatalog.cached().filterNot { it.packageName in DrawerSettings.hidden(context) }) }
+    val clock by produceState(currentTime(context)) {
+        while (true) {
+            value = currentTime(context)
+            delay(15_000)
+        }
+    }
 
     LaunchedEffect(refreshKey) {
-        tiles = withContext(Dispatchers.IO) {
-            AppCatalog.load(context).mapNotNull { app ->
-                runCatching { HomeTile(app, app.icon.toScaledBitmap(256).asImageBitmap()) }.getOrNull()
-            }
-        }
+        apps = withContext(Dispatchers.IO) { AppCatalog.load(context) }
     }
     LaunchedEffect(refreshKey) {
         withFrameNanos { }
@@ -280,93 +281,100 @@ private fun HomeScreen(
     }
 
     Column(
-        Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 27.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        Modifier.fillMaxSize()
+            .background(Brush.radialGradient(listOf(Color(0xFF1A1B24), LaunchColors.Background), center = Offset(200f, 0f), radius = 1500f))
+            .padding(start = 72.dp, end = 72.dp, top = 40.dp, bottom = 36.dp),
+        verticalArrangement = Arrangement.spacedBy(28.dp)
     ) {
-        Text("Nuvio Launch", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            LaunchMark(36.dp)
+            Spacer(Modifier.width(12.dp))
+            Text("Nuvio Launch", color = LaunchColors.Text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.weight(1f))
+            Text(clock, color = LaunchColors.TextSoft, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
+        }
 
         val banner = notice ?: if (!redirectEnabled) "Home is showing this screen instead of Nuvio." else null
-        if (banner != null) {
-            Text(
-                banner,
-                color = HomeColors.Warning,
-                fontSize = 16.sp,
-                modifier = Modifier.fillMaxWidth().background(HomeColors.Panel, RoundedCornerShape(12.dp)).padding(14.dp)
-            )
+        if (banner != null) NoteBox(banner, warning = true)
+
+        Row(Modifier.fillMaxWidth().height(220.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+            FocusCard(
+                modifier = Modifier.weight(2f).fillMaxHeight().focusRequester(firstAction),
+                shape = RoundedCornerShape(22.dp),
+                idle = LaunchColors.Raised,
+                onClick = onOpenNuvio
+            ) { focused ->
+                Column(Modifier.fillMaxSize().padding(26.dp), verticalArrangement = Arrangement.SpaceBetween) {
+                    Box(
+                        Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(if (focused) LaunchColors.OnFocus else LaunchColors.Text),
+                        contentAlignment = Alignment.Center
+                    ) { PlayGlyph(if (focused) LaunchColors.Text else LaunchColors.OnFocus) }
+                    Column {
+                        Text(if (nuvioLabel != null) "Open Nuvio" else "Choose your Nuvio app", color = if (focused) LaunchColors.OnFocus else LaunchColors.Text, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+                        Text(nuvioLabel ?: "Pick it in Nuvio Launch settings", color = if (focused) LaunchColors.OnFocusMuted else LaunchColors.Muted, fontSize = 17.sp, modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
+            }
+            HomeActionTile("Android Settings", Modifier.weight(1f), onAndroidSettings)
+            HomeActionTile("Nuvio Launch Settings", Modifier.weight(1f), onCompanionSettings)
+            if (redirectEnabled) HomeActionTile("Stop using as Home", Modifier.weight(1f), onStopUsingAsHome)
+            else HomeActionTile("Send Home to Nuvio", Modifier.weight(1f), onSendHomeToNuvio)
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            HomeButton(if (hasNuvio) "Open Nuvio" else "Choose Nuvio app", Modifier.focusRequester(firstAction), primary = true, onClick = onOpenNuvio)
-            HomeButton("Android Settings", onClick = onAndroidSettings)
-            HomeButton("Nuvio Launch Settings", onClick = onCompanionSettings)
-            if (redirectEnabled) HomeButton("Stop using as Home", onClick = onStopUsingAsHome)
-            else HomeButton("Send Home to Nuvio", onClick = onSendHomeToNuvio)
-        }
-
-        Text("Apps", color = HomeColors.Muted, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(6),
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            contentPadding = PaddingValues(4.dp)
+        Text("Your apps", color = LaunchColors.Muted, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp)
         ) {
-            items(tiles, key = { it.app.packageName }) { tile ->
-                HomeAppTile(tile) { onLaunchApp(tile.app.packageName) }
+            items(apps, key = { it.packageName }) { app ->
+                FocusCard(
+                    modifier = Modifier.width(176.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    idle = Color.Transparent,
+                    scaleOnFocus = 1.06f,
+                    onClick = { onLaunchApp(app.packageName) }
+                ) { focused ->
+                    Column(Modifier.padding(6.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        AppArt(app, Modifier.fillMaxWidth().height(93.dp), corner = 12.dp)
+                        Text(
+                            app.label,
+                            color = if (focused) LaunchColors.OnFocus else LaunchColors.Muted,
+                            fontSize = 15.sp,
+                            fontWeight = if (focused) FontWeight.SemiBold else FontWeight.Normal,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun HomeButton(label: String, modifier: Modifier = Modifier, primary: Boolean = false, onClick: () -> Unit) {
-    var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(14.dp)
-    Text(
-        label,
-        color = if (focused) Color(0xFF111111) else Color.White,
-        fontSize = 17.sp,
-        fontWeight = if (primary || focused) FontWeight.Bold else FontWeight.Medium,
-        modifier = modifier
-            .onFocusChanged { focused = it.isFocused }
-            .background(if (focused) HomeColors.Accent else HomeColors.Raised, shape)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 22.dp, vertical = 14.dp)
-    )
-}
-
-@Composable
-private fun HomeAppTile(tile: HomeTile, onClick: () -> Unit) {
-    var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(14.dp)
-    Column(
-        Modifier
-            .onFocusChanged { focused = it.isFocused }
-            .then(if (focused) Modifier.border(2.dp, Color.White, shape) else Modifier)
-            .background(if (focused) HomeColors.Raised else Color.Transparent, shape)
-            .clickable(onClick = onClick)
-            .padding(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            Modifier.fillMaxWidth().height(78.dp).background(HomeColors.Panel, RoundedCornerShape(10.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Image(
-                tile.image,
-                tile.app.label,
-                Modifier.fillMaxSize(),
-                contentScale = if (tile.app.isTvBanner) ContentScale.Crop else ContentScale.Fit
-            )
+private fun HomeActionTile(label: String, modifier: Modifier, onClick: () -> Unit) {
+    FocusCard(modifier = modifier.fillMaxHeight(), shape = RoundedCornerShape(22.dp), border = true, onClick = onClick) { focused ->
+        Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            Box(Modifier.size(34.dp).clip(CircleShape).border(2.dp, if (focused) LaunchColors.OnFocus else LaunchColors.TextSoft, CircleShape))
+            Text(label, color = if (focused) LaunchColors.OnFocus else LaunchColors.Text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, lineHeight = 25.sp)
         }
-        Spacer(Modifier.size(6.dp))
-        Text(tile.app.label, color = Color.White, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
-private fun android.graphics.drawable.Drawable.toScaledBitmap(maxSize: Int): Bitmap {
-    val sourceWidth = intrinsicWidth.takeIf { it > 0 } ?: maxSize
-    val sourceHeight = intrinsicHeight.takeIf { it > 0 } ?: maxSize
-    val scale = maxSize.toFloat() / maxOf(sourceWidth, sourceHeight)
-    return toBitmap((sourceWidth * scale).toInt().coerceAtLeast(1), (sourceHeight * scale).toInt().coerceAtLeast(1))
+@Composable
+private fun PlayGlyph(color: Color) {
+    Canvas(Modifier.size(30.dp)) {
+        val w = size.width
+        val path = Path().apply {
+            moveTo(w * 0.3f, w * 0.18f)
+            lineTo(w * 0.82f, w * 0.5f)
+            lineTo(w * 0.3f, w * 0.82f)
+            close()
+        }
+        drawPath(path, color)
+    }
 }
+
+private fun currentTime(context: android.content.Context): String =
+    android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date())
